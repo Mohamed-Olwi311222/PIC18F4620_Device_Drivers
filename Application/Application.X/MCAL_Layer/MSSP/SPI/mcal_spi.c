@@ -153,7 +153,6 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
     
     /* Only Master Mode */
     if (NULL == spi_obj || 
-        NULL == slave_ss_pin || 
         SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode ||
         SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
     {
@@ -162,7 +161,7 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
     else
     {
         /* Select the Slave SPI to send to it */
-        ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
+        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
         /* Write To the SSPBUF register to send data */
         SSPBUF = data;
         /* Poll the BF Bit to wait until any read/write operation is done */
@@ -176,7 +175,40 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
             SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
         }
         /* Deselect the chosen Slave SPI */
-        ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
+        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
+    } 
+    return (ret);   
+}
+/**
+ * @brief: Receive Data using Master Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param slave_ss_pin the slave select pin to send data to its Slave SPI Module
+ * @param data the address to save the data read
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj, 
+                                    const pin_config_t *const slave_ss_pin,
+                                     uint8 *const data)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Only Master Mode */
+    if (NULL == spi_obj || 
+        SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode ||
+        SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        /* Select the Slave SPI to send to it */
+        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
+        /* Poll the BF Bit to wait until any read/write operation is done */
+        while (_SPI_RECEIVE_BUFFER_EMPTY == SSPSTATbits.BF);
+        /* Read the SSPBUF register */
+        *data = SSPBUF;
+        /* Deselect the chosen Slave SPI */
+        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
     return (ret);   
 }
