@@ -203,6 +203,8 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
     {
         /* Select the Slave SPI to send to it */
         if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
+        /* Send Dummy Data to initiates the CLK */
+        SSPBUF = 0xFF;
         /* Poll the BF Bit to wait until any read/write operation is done */
         while (_SPI_RECEIVE_BUFFER_EMPTY == SSPSTATbits.BF);
         /* Read the SSPBUF register */
