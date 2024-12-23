@@ -216,3 +216,44 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
     } 
     return (ret);   
 }
+/**
+ * @brief: Send Data using Slave Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param data the data to send
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data)
+{
+    Std_ReturnType ret = E_OK;
+    uint8 dummy = ZERO_INIT;
+    
+    if (NULL == spi_obj)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        /* Only Slave Mode */
+        if (SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode || 
+                SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+        {
+            /* Wait for the transmission to complete */
+            while (!PIR1bits.SSPIF);
+            /* Clear the interrupt flag for the next operation */
+            PIR1bits.SSPIF = 0;
+            /* Read SSPBUF to avoid Overflow */
+            dummy = SSPBUF;
+            SSPCON1bits.SSPOV = _SPI_SLAVE_RECEIVE_NO_OVERFLOW;
+            /* Write To the SSPBUF register to send data */
+            SSPBUF = data;
+            if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
+            {
+                /* Collision is detected */
+                ret = E_NOT_OK;
+                /* Clear the WCOL bit to continue SPI operations */
+                SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
+            }
+        }
+    } 
+    return (ret);  
+}
