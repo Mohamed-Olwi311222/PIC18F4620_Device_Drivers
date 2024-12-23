@@ -164,10 +164,6 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
         if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
         /* Write To the SSPBUF register to send data */
         SSPBUF = data;
-        /* Wait for the transmission to complete */
-        while (!PIR1bits.SSPIF);
-        /* Clear the interrupt flag for the next operation */
-        PIR1bits.SSPIF = 0;
         /* Check the Write Collision Status */
         if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
         {
@@ -176,6 +172,10 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
             /* Clear the WCOL bit to continue SPI operations */
             SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
         }
+        /* Wait for the transmission to complete */
+        while (!PIR1bits.SSPIF);
+        /* Clear the interrupt flag for the next operation */
+        PIR1bits.SSPIF = 0;
         /* Deselect the chosen Slave SPI */
         if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
@@ -203,7 +203,7 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
     }
     else
     {
-        /* Select the Slave SPI to send to it */
+        /* Select the Slave SPI to receive from it */
         if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
         /* Send Dummy Data to initiates the CLK */
         SSPBUF = 0xFF;
@@ -211,8 +211,6 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
         while (_SPI_RECEIVE_BUFFER_EMPTY == SSPSTATbits.BF);
         /* Read the SSPBUF register */
         *data = SSPBUF;
-        /* Delay for Synchronization */
-        __delay_us(10);
         /* Deselect the chosen Slave SPI */
         if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
