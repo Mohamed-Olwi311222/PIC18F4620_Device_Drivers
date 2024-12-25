@@ -13,6 +13,13 @@
 /*---------------Static Helper functions declerations---------------------------*/
 static inline void spi_slave_mode_init(const spi_t *const spi_obj);
 static inline void spi_master_mode_init(const spi_t *const spi_obj);
+static inline uint8 is_spi_buffer_full(void);
+static inline uint8 is_spi_write_collision(void);
+static inline void clear_spi_interrupt_flag(void);
+static inline void clear_spi_write_collision(void);
+static inline uint8 spi_interrupt_flag(void);
+static inline void clear_spi_receive_overflow(void);
+static inline uint8 read_spi_buffer(void);
 /*---------------Static Helper functions declerations End-----------------------*/
 
 /**
@@ -138,6 +145,60 @@ Std_ReturnType spi_deinit(const spi_t *const spi_obj)
     return (ret);
 }
 /**
+ * @brief Read the status of the SPI buffer
+ * @return the status of the BF flag in SSPSTAT register
+ */
+static inline uint8 is_spi_buffer_full(void)
+{
+    return SSPSTATbits.BF;
+}
+/**
+ * @brief Poll and read the SPI Buffer
+ * @return the SPI Buffer
+ */
+static inline uint8 read_spi_buffer(void)
+{
+    while (!is_spi_buffer_full());
+    return SSPBUF;
+}
+/**
+ * @brief Read the status of the Write Collision of SPI Buffer
+ * @return the status of the WCOL flag in the SSPSTAT register
+ */
+static inline uint8 is_spi_write_collision(void)
+{
+    return SSPCON1bits.WCOL;
+}
+/**
+ * @brief Read the status of the SPI interrupt flag
+ * @return the status of the SPI interrupt flag
+ */
+static inline uint8 spi_interrupt_flag(void)
+{
+    return PIR1bits.SSPIF;
+}
+/**
+ * @brief Clear the SPI interrupt flag
+ */
+static inline void clear_spi_interrupt_flag(void)
+{
+    PIR1bits.SSPIF = 0;
+}
+/**
+ * @brief Clear the Write Collision flag
+ */
+static inline void clear_spi_write_collision(void)
+{
+    SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
+}
+/**
+ * @brief Clear the SPI Receive Overflow
+ */
+static inline void clear_spi_receive_overflow(void)
+{
+    SSPCON1bits.SSPOV = _SPI_SLAVE_RECEIVE_NO_OVERFLOW;
+}
+/**
  * @brief: Send Data using Master Mode SPI Module
  * @note: It use Polling mechanism to send the data(Polling BF flag)
  * @param spi_obj the SPI module object
@@ -161,7 +222,7 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
     else
     {
         /* Select the Slave SPI to send to it */
-        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
+        if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
         /* Write To the SSPBUF register to send data */
         SSPBUF = data;
         /* Check the Write Collision Status */
@@ -170,14 +231,14 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
             /* Collision is detected */
             ret = E_NOT_OK;
             /* Clear the WCOL bit to continue SPI operations */
-            SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
+            clear_spi_write_collision();
         }
         /* Wait for the transmission to complete */
-        while (!PIR1bits.SSPIF);
+        while (!spi_interrupt_flag());
         /* Clear the interrupt flag for the next operation */
-        PIR1bits.SSPIF = 0;
+        clear_spi_interrupt_flag();
         /* Deselect the chosen Slave SPI */
-        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
+        if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
     return (ret);   
 }
@@ -204,15 +265,13 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
     else
     {
         /* Select the Slave SPI to receive from it */
-        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
+        if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
         /* Send Dummy Data to initiates the CLK */
-        SSPBUF = 0xFF;
-        /* Poll the BF Bit to wait until any read/write operation is done */
-        while (_SPI_RECEIVE_BUFFER_EMPTY == SSPSTATbits.BF);
-        /* Read the SSPBUF register */
-        *data = SSPBUF;
+        SSPBUF = SPI_DUMMY_DATA;
+        /* Poll the BF Bit to wait until any read/write operation is done and Read the SPI Buffer */
+        *data = read_spi_buffer();
         /* Deselect the chosen Slave SPI */
-        if (NULL != slave_ss_pin) ret |= gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
+        if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
     return (ret);   
 }
@@ -238,12 +297,12 @@ Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data)
                 SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
         {
             /* Wait for the transmission to complete */
-            while (!PIR1bits.SSPIF);
+            while (!spi_interrupt_flag());
             /* Clear the interrupt flag for the next operation */
-            PIR1bits.SSPIF = 0;
+            clear_spi_interrupt_flag();
             /* Read SSPBUF to avoid Overflow */
             dummy = SSPBUF;
-            SSPCON1bits.SSPOV = _SPI_SLAVE_RECEIVE_NO_OVERFLOW;
+            clear_spi_receive_overflow();
             /* Write To the SSPBUF register to send data */
             SSPBUF = data;
             if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
@@ -251,9 +310,41 @@ Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data)
                 /* Collision is detected */
                 ret = E_NOT_OK;
                 /* Clear the WCOL bit to continue SPI operations */
-                SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
+                clear_spi_write_collision();
             }
         }
     } 
     return (ret);  
+}
+/**
+ * @brief: Receive Data using Slave Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param data the address to save the data read
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const data)
+{
+    Std_ReturnType ret = E_OK;
+    uint8 dummy = ZERO_INIT;
+
+    /* Only Master Mode */
+    if (NULL == spi_obj)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        /* Only Slave Mode */
+        if (SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode || 
+                SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+        {
+            /* Poll the BF Bit to wait until any read/write operation is done and 
+             * Read the SPI Buffer to avoid Overflowing */
+            dummy = read_spi_buffer();
+            clear_spi_receive_overflow();
+            /* Read the SSPBUF register */
+            *data = SSPBUF;
+        }
+    }  
+    return (ret);
 }

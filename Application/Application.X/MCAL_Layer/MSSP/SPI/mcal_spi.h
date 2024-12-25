@@ -14,6 +14,7 @@
 #include "../../Interrupt/mcal_internal_interrupt.h"
 #include "../../mcal_layer_cfg.h"
 /*----------------------------Macros Declarations-----------------------------*/
+#define SPI_DUMMY_DATA                                    0xFF /* Dummy data to send in master mode to initiate the CLK line */
 /*==================SSPSTAT REG================*/
 /*----------SMP Bit-----------*/
 #define _SPI_SAMPLE_INPUT_END                                1 /* Input data sampled at end of data output time */
