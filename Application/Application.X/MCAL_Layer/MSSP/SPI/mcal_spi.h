@@ -14,7 +14,8 @@
 #include "../../Interrupt/mcal_internal_interrupt.h"
 #include "../../mcal_layer_cfg.h"
 /*----------------------------Macros Declarations-----------------------------*/
-#define SPI_DUMMY_DATA                                    0xFF /* Dummy data to send in master mode to initiate the CLK line */
+#define SPI_DUMMY_DATA                                    0x00 /* Dummy data to send in master mode to initiate the CLK line */
+#define SPI_ACKNOWLEDGEMENT                               0xFF /* Acknowledgement signal to send when the spi is received some data */
 /*==================SSPSTAT REG================*/
 /*----------SMP Bit-----------*/
 #define _SPI_SAMPLE_INPUT_END                                1 /* Input data sampled at end of data output time */
@@ -174,5 +175,12 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
  * @return E_OK if success otherwise E_NOT_OK
  */
 Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data);
+/**
+ * @brief: Receive Data using Slave Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param data the address to save the data read
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const data);
 #endif	/* MCAL_SPI_H */
 

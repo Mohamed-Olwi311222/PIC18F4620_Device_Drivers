@@ -199,6 +199,16 @@ static inline void clear_spi_receive_overflow(void)
     SSPCON1bits.SSPOV = _SPI_SLAVE_RECEIVE_NO_OVERFLOW;
 }
 /**
+ * @brief poll the SPI interrupt flag to wait for the current operation to end
+ */
+static inline void poll_spi_interrupt_flag(void)
+{
+    /* Wait for the transmission to complete */
+    while (!spi_interrupt_flag());
+    /* Clear the interrupt flag for the next operation */
+    clear_spi_interrupt_flag(); 
+}
+/**
  * @brief: Send Data using Master Mode SPI Module
  * @note: It use Polling mechanism to send the data(Polling BF flag)
  * @param spi_obj the SPI module object
@@ -234,9 +244,11 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
             clear_spi_write_collision();
         }
         /* Wait for the transmission to complete */
-        while (!spi_interrupt_flag());
-        /* Clear the interrupt flag for the next operation */
-        clear_spi_interrupt_flag();
+        poll_spi_interrupt_flag();
+        /* Send Acknowledgement signal */
+        SSPBUF = SPI_ACKNOWLEDGEMENT;
+        /* Wait for the transmission to complete */
+        poll_spi_interrupt_flag();
         /* Deselect the chosen Slave SPI */
         if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
@@ -268,8 +280,21 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
         if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_LOW);
         /* Send Dummy Data to initiates the CLK */
         SSPBUF = SPI_DUMMY_DATA;
+        /* Wait for the transmission to complete */
+        poll_spi_interrupt_flag();
         /* Poll the BF Bit to wait until any read/write operation is done and Read the SPI Buffer */
         *data = read_spi_buffer();
+        if (SPI_DUMMY_DATA == *data)
+        {
+            ret = E_NOT_OK;
+        }
+        else
+        {
+            /* Send Acknowledgement signal */
+            SSPBUF = SPI_ACKNOWLEDGEMENT;
+            /* Wait for the transmission to complete */
+            poll_spi_interrupt_flag();
+        }
         /* Deselect the chosen Slave SPI */
         if (NULL != slave_ss_pin) ret = gpio_pin_write_logic(slave_ss_pin, GPIO_HIGH);
     } 
@@ -305,6 +330,8 @@ Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data)
             clear_spi_receive_overflow();
             /* Write To the SSPBUF register to send data */
             SSPBUF = data;
+            /* Wait for the transmission to complete */
+            poll_spi_interrupt_flag();
             if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
             {
                 /* Collision is detected */
@@ -312,6 +339,10 @@ Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data)
                 /* Clear the WCOL bit to continue SPI operations */
                 clear_spi_write_collision();
             }
+            /* Send Acknowledgement signal */
+            SSPBUF = SPI_ACKNOWLEDGEMENT;
+            /* Wait for the transmission to complete */
+            poll_spi_interrupt_flag();
         }
     } 
     return (ret);  
@@ -344,6 +375,17 @@ Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const d
             clear_spi_receive_overflow();
             /* Read the SSPBUF register */
             *data = SSPBUF;
+            if (SPI_DUMMY_DATA == *data)
+            {
+                ret = E_NOT_OK;
+            }
+            else
+            {
+                /* Send Acknowledgement signal */
+                SSPBUF = SPI_ACKNOWLEDGEMENT;
+                /* Wait for the transmission to complete */
+                poll_spi_interrupt_flag();
+            }
         }
     }  
     return (ret);
