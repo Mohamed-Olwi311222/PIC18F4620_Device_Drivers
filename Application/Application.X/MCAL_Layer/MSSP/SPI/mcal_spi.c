@@ -262,10 +262,19 @@ static inline Std_ReturnType configure_spi_interrupt(const spi_t *const spi_obj)
     /* Disable Interrupt before configuring */
     SPI_INTERRUPT_DISABLE();
     
-    #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+    /* Enable priority levels */
+    INTERRUPT_PRIORITY_levels_ENABLE();
+    INTERRUPT_Global_interrupt_LOW_ENABLE();
+    INTERRUPT_Global_interrupt_HIGH_ENABLE();
     /* Configure the SPI Module Interrupt priority */
     configure_spi_interrupt_priority(spi_obj->spi_interrupt_priority);
-    #endif
+#else
+    /* If the interrupt priority is disabled then enable the peripheral interrupt
+    and global interrupts */
+        INTERRUPT_Peripheral_interrupt_ENABLE();
+        INTERRUPT_Global_interrupt_ENABLE();
+#endif
     
     /* Clear Interrupt flag */
     SPI_INTERRUPT_FLAG_BIT_CLEAR();
