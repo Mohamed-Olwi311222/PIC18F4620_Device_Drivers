@@ -98,5 +98,10 @@ void EUSART_TX_ISR(void);
  * @brief the interrupt service routine of EUSART Receive mode
  */
 void EUSART_RX_ISR(void);
+
+/**
+ * @brief the interrupt service routine of SPI Module
+ */
+void SPI_ISR(void);
 #endif	/* MCAL_INTERRUPT_MANAGER_H */
 

@@ -307,6 +307,19 @@ static inline Std_ReturnType set_spi_interrupt_handler(INTERRUPT_HANDLER spi_int
     }
     return (ret);
 }
+/**
+ * @brief the interrupt service routine of SPI Module
+ */
+void SPI_ISR(void)
+{
+    /* Clear the SPI interrupt flag */
+    SPI_INTERRUPT_FLAG_BIT_CLEAR();
+    if (NULL != spi_interrupt_handler)
+    {
+        /* Call the interrupt handler */
+        spi_interrupt_handler();
+    }
+}
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
 /**
  * @brief Configure the SPI Interrupt priority depending on the user input
