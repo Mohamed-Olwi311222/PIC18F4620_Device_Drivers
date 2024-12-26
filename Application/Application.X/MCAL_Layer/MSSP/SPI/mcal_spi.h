@@ -120,17 +120,26 @@ typedef enum
     SPI_SLAVE_MODE_SS_ENABLED,
     SPI_SLAVE_MODE_SS_DISABLED
 } spi_mode_select_t;
-
+/**
+ * struct spi_t - A Struct for SPI 
+ * @spi_interrupt: The interrupt handler for SPI Module
+ * @spi_interrupt_priority: The priority of the interrupt of SPI Module
+ * @spi_mode: The Operating Mode of the SPI Module @ref spi_mode_select_t
+ * @idle_clk_polarity: The Clock Polarity of the idle state of the SPI Module
+ * @clk_transition_edge: The Clock transition edge of the SPI Module
+ */
 typedef struct
 {
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+    INTERRUPT_HANDLER spi_interrupt;
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+    interrupt_priority_cfg spi_interrupt_priority;
 #endif
 #endif
     spi_mode_select_t spi_mode;
-    uint8 clk_polarity : 1;
+    uint8 idle_clk_polarity : 1;
     uint8 data_input_sampe_phase : 1;
-    uint8 clk_edg : 1;
+    uint8 clk_transition_edge : 1;
     uint8 RESERVED : 5;
 } spi_t;
 /*----------------------------Function Prototypes-----------------------------*/

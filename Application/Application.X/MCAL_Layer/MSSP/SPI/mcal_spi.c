@@ -44,7 +44,7 @@ Std_ReturnType spi_init(const spi_t *const spi_obj)
         /* Configure the SPI Mode */
         SPI_SET_OPERATION_MODE(spi_obj->spi_mode);
         /* Configure CLK Edge */
-        if ( _SPI_TRANSITION_ACTIVE_IDLE == spi_obj->clk_edg)
+        if ( _SPI_TRANSITION_ACTIVE_IDLE == spi_obj->clk_transition_edge)
         {
             SPI_TRANSITION_ACTIVE_IDLE_CONFIG();
         }
@@ -53,7 +53,7 @@ Std_ReturnType spi_init(const spi_t *const spi_obj)
             SPI_TRANSITION_IDLE_ACTIVE_CONFIG();
         }
         /* Configure CLK Polarity */
-        if (_SPI_IDLE_STATE_HIGH == spi_obj->clk_polarity)
+        if (_SPI_IDLE_STATE_HIGH == spi_obj->idle_clk_polarity)
         {
             SPI_IDLE_STATE_HIGH_CONFIG();
         }
