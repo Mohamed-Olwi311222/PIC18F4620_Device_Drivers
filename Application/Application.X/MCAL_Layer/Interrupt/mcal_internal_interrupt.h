@@ -239,5 +239,30 @@
 #define EUSART_RECEIVE_LOW_PRIORITY()                   (IPR1bits.RC1IP = 0)
 #endif
 #endif
+/*----------------SPI Interrupt--------------*/
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+/**
+ * Clears the interrupt enable for the SPI Module
+ */
+#define SPI_INTERRUPT_DISABLE()                         (PIE1bits.SSPIE = 0)
+/**
+ * Sets the interrupt enable for the SPI Module
+ */
+#define SPI_INTERRUPT_ENABLE()                          (PIE1bits.SSPIE = 1)
+/**
+ * Clears the Interrupt flag for the SPI Module
+ */
+#define SPI_INTERRUPT_FLAG_BIT_CLEAR()                  (PIR1bits.SSPIF = 0)
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+/**
+ * SPI Module HIGH priority
+ */
+#define SPI_HIGH_PRIORITY()                             (IPR1bits.SSPIP = 1)
+/**
+ * SPI Module LOW priority
+ */
+#define SPI_LOW_PRIORITY()                              (IPR1bits.SSPIP = 0)
+#endif
+#endif
 #endif	/* MCAL_INTERNAL_INTERRUPT_H */
 
