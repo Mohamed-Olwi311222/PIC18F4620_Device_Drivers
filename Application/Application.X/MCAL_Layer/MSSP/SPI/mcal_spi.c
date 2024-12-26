@@ -7,10 +7,14 @@
 #include "mcal_spi.h"
 
 /*---------------Static Data types----------------------------------------------*/
-
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
+#endif
 /*---------------Static Data types End------------------------------------------*/
 
 /*---------------Static Helper functions declerations---------------------------*/
+static inline void configure_spi_clk(const spi_t *const spi_obj);
+static inline Std_ReturnType configure_spi_pins(const spi_t *const spi_obj);
 static inline void spi_slave_mode_init(const spi_t *const spi_obj);
 static inline void spi_master_mode_init(const spi_t *const spi_obj);
 static inline uint8 is_spi_buffer_full(void);
@@ -20,6 +24,10 @@ static inline void clear_spi_write_collision(void);
 static inline uint8 spi_interrupt_flag(void);
 static inline void clear_spi_receive_overflow(void);
 static inline uint8 read_spi_buffer(void);
+/*----Interrupt helper functions----*/
+static inline Std_ReturnType configure_spi_interrupt(const spi_t *const spi_obj);
+static inline Std_ReturnType set_spi_interrupt_handler(INTERRUPT_HANDLER spi_interrupt);
+static inline void configure_spi_interrupt_priority(interrupt_priority_cfg spi_interrupt_priority);
 /*---------------Static Helper functions declerations End-----------------------*/
 
 /**
@@ -30,8 +38,6 @@ static inline uint8 read_spi_buffer(void);
 Std_ReturnType spi_init(const spi_t *const spi_obj)
 {
     Std_ReturnType ret = E_OK;
-    /* SDO (Serial Data Out) pin */
-    static const pin_config_t SDO_pin = {.direction = GPIO_DIRECTION_OUTPUT, .port = PORTC_INDEX, .pin = GPIO_PIN5};
     
     if (NULL == spi_obj)
     {
@@ -43,39 +49,70 @@ Std_ReturnType spi_init(const spi_t *const spi_obj)
         SPI_SERIAL_PORT_DISABLE_CONFIG();
         /* Configure the SPI Mode */
         SPI_SET_OPERATION_MODE(spi_obj->spi_mode);
-        /* Configure CLK Edge */
-        if ( _SPI_TRANSITION_ACTIVE_IDLE == spi_obj->clk_transition_edge)
-        {
-            SPI_TRANSITION_ACTIVE_IDLE_CONFIG();
-        }
-        else
-        {
-            SPI_TRANSITION_IDLE_ACTIVE_CONFIG();
-        }
-        /* Configure CLK Polarity */
-        if (_SPI_IDLE_STATE_HIGH == spi_obj->idle_clk_polarity)
-        {
-            SPI_IDLE_STATE_HIGH_CONFIG();
-        }
-        else
-        {
-            SPI_IDLE_STATE_LOW_CONFIG();
-        }
-        /* Configure Master/Slave mode SCK pin data direction and Sample time*/
-        if (SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode || 
-                SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
-        {
-            spi_slave_mode_init(spi_obj);
-        }
-        else
-        {
-            spi_master_mode_init(spi_obj);
-        }
-        /* Configure SDO pin */
-        if (E_OK != gpio_pin_direction_initialize(&SDO_pin)) ret = E_NOT_OK;
+        /* Configure the SPI Clock polarity and idle state */
+        configure_spi_clk(spi_obj);
+        /* Configure SPI pins and Sample time of Master/Slave Modes */
+        if (E_OK != configure_spi_pins(spi_obj)) ret = E_NOT_OK;
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+        /* Configure the SPI Interrupt */
+        if (E_OK != configure_spi_interrupt(spi_obj)) ret = E_NOT_OK;
+#endif
         /* Enable SPI */
         SPI_SERIAL_PORT_ENABLE_CONFIG();
     }
+    return (ret);
+}
+/**
+ * @brief Configure the SPI Clock polarity and the data transition edge
+ * @param spi_obj the SPI module object
+ */
+static inline void configure_spi_clk(const spi_t *const spi_obj)
+{
+    /* Configure CLK Edge */
+    if ( _SPI_TRANSITION_ACTIVE_IDLE == spi_obj->clk_transition_edge)
+    {
+        SPI_TRANSITION_ACTIVE_IDLE_CONFIG();
+    }
+    else
+    {
+        SPI_TRANSITION_IDLE_ACTIVE_CONFIG();
+    }
+    
+    /* Configure CLK Polarity */
+    if (_SPI_IDLE_STATE_HIGH == spi_obj->idle_clk_polarity)
+    {
+        SPI_IDLE_STATE_HIGH_CONFIG();
+    }
+    else
+    {
+        SPI_IDLE_STATE_LOW_CONFIG();
+    }  
+}
+/**
+ * @brief Configure SPI Pins and Sample time of Master/Slave modes
+ * @param spi_obj the SPI module object
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType configure_spi_pins(const spi_t *const spi_obj)
+{
+    Std_ReturnType ret = E_OK;
+    /* SDO (Serial Data Out) pin */
+    static const pin_config_t SDO_pin = {.direction = GPIO_DIRECTION_OUTPUT, .port = PORTC_INDEX, .pin = GPIO_PIN5};
+    
+    /* Configure Master/Slave mode SCK pin data direction and Sample time*/
+    if (SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode || 
+            SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+    {
+        spi_slave_mode_init(spi_obj);
+    }
+    else
+    {
+        spi_master_mode_init(spi_obj);
+    }
+    
+    /* Configure SDO pin */
+    if (E_OK != gpio_pin_direction_initialize(&SDO_pin)) ret = E_NOT_OK;
+    
     return (ret);
 }
 /**
@@ -139,6 +176,10 @@ Std_ReturnType spi_deinit(const spi_t *const spi_obj)
     }
     else
     {
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+        /* Disable SPI Interrupt */
+        SPI_INTERRUPT_DISABLE();
+#endif      
         /* Disable SPI Module */
         SPI_SERIAL_PORT_DISABLE_CONFIG();
     } 
@@ -208,6 +249,76 @@ static inline void poll_spi_interrupt_flag(void)
     /* Clear the interrupt flag for the next operation */
     clear_spi_interrupt_flag(); 
 }
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+/**
+ * @brief Configure the interrupt feature of the SPI Module
+ * @param spi_obj the SPI module object
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType configure_spi_interrupt(const spi_t *const spi_obj)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Disable Interrupt before configuring */
+    SPI_INTERRUPT_DISABLE();
+    
+    #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+    /* Configure the SPI Module Interrupt priority */
+    configure_spi_interrupt_priority(spi_obj->spi_interrupt_priority);
+    #endif
+    
+    /* Clear Interrupt flag */
+    SPI_INTERRUPT_FLAG_BIT_CLEAR();
+    
+    /* Configure the interrupt hadler */
+    ret = set_spi_interrupt_handler(spi_obj->spi_interrupt);
+    
+    /* Enable SPI interrupt */
+    SPI_INTERRUPT_ENABLE();
+    
+    return (ret);
+}
+/**
+ * @brief Set the interrupt handler of the SPI Module
+ * @param spi_interrupt the interrupt handler to call when the interrupt flag is set
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType set_spi_interrupt_handler(INTERRUPT_HANDLER spi_interrupt)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Set the interrupt handler if it isn't null */
+    if (spi_interrupt)
+    {
+        spi_interrupt_handler = spi_interrupt;
+    }
+    else
+    {
+        ret = E_NOT_OK;
+    }
+    return (ret);
+}
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+/**
+ * @brief Configure the SPI Interrupt priority depending on the user input
+ * @param spi_interrupt_priority the inputted interrupt priority from the user
+ */
+static inline void configure_spi_interrupt_priority(interrupt_priority_cfg spi_interrupt_priority)
+{
+    switch (spi_interrupt_priority)
+    {
+        /* High Priority */
+        case INTERRUPT_HIGH_PRIORITY:
+            SPI_HIGH_PRIORITY();
+            break;
+        /* Low Priority */
+        case INTERRUPT_LOW_PRIORITY:
+            SPI_LOW_PRIORITY();
+            break;
+    }
+}
+#endif
+#else
 /**
  * @brief: Send Data using Master Mode SPI Module
  * @note: It use Polling mechanism to send the data(Polling BF flag)
@@ -355,3 +466,4 @@ Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const d
     }  
     return (ret);
 }
+#endif
