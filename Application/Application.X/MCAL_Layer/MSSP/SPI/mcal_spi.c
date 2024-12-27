@@ -10,6 +10,7 @@
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
 static pin_config_t *ss_pin = NULL;                    /* A pointer to the ss pin of the other mcu in the master interrupt mode */
+static uint8 *data_received = NULL;                    /* A pointer to the received data in SPI using interrupt */
 #endif
 /*---------------Static Data types End------------------------------------------*/
 
@@ -318,6 +319,11 @@ void SPI_MASTER_ISR(void)
     {
         (void) gpio_pin_write_logic(ss_pin, GPIO_HIGH);
     }
+    /* Read the data in SPI Master receive Mode */
+    if (NULL != data_received)
+    {
+        *data_received = SSPBUF;
+    }
     /* Clear the SPI interrupt flag */
     SPI_INTERRUPT_FLAG_BIT_CLEAR();
     if (NULL != spi_interrupt_handler)
@@ -352,6 +358,7 @@ static inline void configure_spi_interrupt_priority(interrupt_priority_cfg spi_i
  * @note: It use Polling mechanism to send the data(Polling BF flag)
  * @param spi_obj the SPI module object
  * @param slave_ss_pin the slave select pin to send data to its Slave SPI Module
+ *                     (can be null if no ss pin is used)
  * @param data the data to send
  * @return E_OK if success otherwise E_NOT_OK
  */
@@ -370,11 +377,54 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
     }
     else
     {
+        /* Point to the given SS pin of the slave */
         ss_pin = (pin_config_t *)slave_ss_pin;
         /* Select the Slave SPI to send to it */
         if (NULL != ss_pin) ret = gpio_pin_write_logic(ss_pin, GPIO_LOW);
         /* Write To the SSPBUF register to send data */
         SSPBUF = data;
+        /* Check the Write Collision Status */
+        if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
+        {
+            /* Collision is detected */
+            ret = E_NOT_OK;
+            /* Clear the WCOL bit to continue SPI operations */
+            clear_spi_write_collision();
+        }
+    } 
+    return (ret);   
+}
+/**
+ * @brief: Receive Data using Master Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param slave_ss_pin the slave select pin to receive data from the Slave SPI Module
+ *                     (can be null if no ss pin is used)
+ * @param data the address to save the data read
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj, 
+                                    const pin_config_t *const slave_ss_pin,
+                                     uint8 *const data)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Only Master Mode */
+    if (NULL == spi_obj || 
+        NULL == data    ||
+        SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode ||
+        SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        /* Point to the given SS pin of the slave */
+        ss_pin = (pin_config_t *)slave_ss_pin;
+        /* Select the Slave SPI to send to it */
+        if (NULL != ss_pin) ret = gpio_pin_write_logic(ss_pin, GPIO_LOW);
+        /* Make the static pointer points to the returned address so when
+           the ISR is called the data_received(which is @data) is updated */
+        data_received = data;
         /* Check the Write Collision Status */
         if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
         {
@@ -392,6 +442,7 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
  * @note: It use Polling mechanism to send the data(Polling BF flag)
  * @param spi_obj the SPI module object
  * @param slave_ss_pin the slave select pin to send data to its Slave SPI Module
+ *                     (can be null if no ss pin is used)
  * @param data the data to send
  * @return E_OK if success otherwise E_NOT_OK
  */
@@ -432,7 +483,8 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
 /**
  * @brief: Receive Data using Master Mode SPI Module
  * @param spi_obj the SPI module object
- * @param slave_ss_pin the slave select pin to send data to its Slave SPI Module
+ * @param slave_ss_pin the slave select pin to receive data from the Slave SPI Module
+ *                     (can be null if no ss pin is used)
  * @param data the address to save the data read
  * @return E_OK if success otherwise E_NOT_OK
  */
@@ -444,6 +496,7 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
     
     /* Only Master Mode */
     if (NULL == spi_obj || 
+        NULL == data    ||
         SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode ||
         SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
     {
@@ -514,8 +567,7 @@ Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const d
     Std_ReturnType ret = E_OK;
     uint8 dummy = ZERO_INIT;
 
-    /* Only Master Mode */
-    if (NULL == spi_obj)
+    if (NULL == spi_obj || NULL == data)
     {
         ret = E_NOT_OK;
     }
