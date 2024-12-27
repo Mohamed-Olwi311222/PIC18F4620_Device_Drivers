@@ -100,8 +100,8 @@ void EUSART_TX_ISR(void);
 void EUSART_RX_ISR(void);
 
 /**
- * @brief the interrupt service routine of SPI Module
+ * @brief the interrupt service routine of SPI Module Master Mode
  */
-void SPI_ISR(void);
+void SPI_MASTER_ISR(void);
 #endif	/* MCAL_INTERRUPT_MANAGER_H */
 

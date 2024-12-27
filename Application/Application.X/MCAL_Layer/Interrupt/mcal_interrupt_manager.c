@@ -23,7 +23,8 @@ void __interrupt() Interrupt_Manager_High(void)
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
     if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF))
     {
-        SPI_ISR();
+        /* Call the ISR of the SPI Master Mode interrupt */
+        SPI_MASTER_ISR();
     }
 #endif
 #if ADC_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
