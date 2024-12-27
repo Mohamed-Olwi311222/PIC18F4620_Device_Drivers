@@ -9,6 +9,7 @@
 /*---------------Static Data types----------------------------------------------*/
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
+static pin_config_t *ss_pin = NULL;                    /* A pointer to the ss pin of the other mcu in the master interrupt mode */
 #endif
 /*---------------Static Data types End------------------------------------------*/
 
@@ -310,8 +311,13 @@ static inline Std_ReturnType set_spi_interrupt_handler(INTERRUPT_HANDLER spi_int
 /**
  * @brief the interrupt service routine of SPI Module
  */
-void SPI_ISR(void)
+void SPI_MASTER_ISR(void)
 {
+    /* Pull up the SS pin of the slave high to end the comms */
+    if (NULL != ss_pin)
+    {
+        (void) gpio_pin_write_logic(ss_pin, GPIO_HIGH);
+    }
     /* Clear the SPI interrupt flag */
     SPI_INTERRUPT_FLAG_BIT_CLEAR();
     if (NULL != spi_interrupt_handler)
@@ -319,6 +325,7 @@ void SPI_ISR(void)
         /* Call the interrupt handler */
         spi_interrupt_handler();
     }
+    
 }
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
 /**
@@ -340,6 +347,45 @@ static inline void configure_spi_interrupt_priority(interrupt_priority_cfg spi_i
     }
 }
 #endif
+/**
+ * @brief: Send Data using Master Mode SPI Module
+ * @note: It use Polling mechanism to send the data(Polling BF flag)
+ * @param spi_obj the SPI module object
+ * @param slave_ss_pin the slave select pin to send data to its Slave SPI Module
+ * @param data the data to send
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_master_send_data(const spi_t *const spi_obj, 
+                                    const pin_config_t *const slave_ss_pin,
+                                     const uint8 data)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Only Master Mode */
+    if (NULL == spi_obj || 
+        SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode ||
+        SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        ss_pin = (pin_config_t *)slave_ss_pin;
+        /* Select the Slave SPI to send to it */
+        if (NULL != ss_pin) ret = gpio_pin_write_logic(ss_pin, GPIO_LOW);
+        /* Write To the SSPBUF register to send data */
+        SSPBUF = data;
+        /* Check the Write Collision Status */
+        if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
+        {
+            /* Collision is detected */
+            ret = E_NOT_OK;
+            /* Clear the WCOL bit to continue SPI operations */
+            clear_spi_write_collision();
+        }
+    } 
+    return (ret);   
+}
 #else
 /**
  * @brief: Send Data using Master Mode SPI Module
