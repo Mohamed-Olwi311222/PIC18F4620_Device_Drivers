@@ -11,6 +11,8 @@
 static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
 static pin_config_t *ss_pin = NULL;                    /* A pointer to the ss pin of the other mcu in the master interrupt mode */
 static uint8 *data_received = NULL;                    /* A pointer to the received data in SPI using interrupt */
+static uint8 slave_data_received = ZERO_INIT;          /* A Variable to read data before reading/writing to SSPBUF */
+static uint8 *slave_data_sent = NULL;                  /* A pointer to the sent data in SPI Slave Mode using interrupt */
 #endif
 /*---------------Static Data types End------------------------------------------*/
 
@@ -30,6 +32,8 @@ static inline uint8 read_spi_buffer(void);
 static inline Std_ReturnType configure_spi_interrupt(const spi_t *const spi_obj);
 static inline Std_ReturnType set_spi_interrupt_handler(INTERRUPT_HANDLER spi_interrupt);
 static inline void configure_spi_interrupt_priority(interrupt_priority_cfg spi_interrupt_priority);
+static void inline SPI_SLAVE_RECEIVE_ISR(void);
+static void inline SPI_SLAVE_SEND_ISR(void);
 /*---------------Static Helper functions declerations End-----------------------*/
 
 /**
@@ -188,68 +192,11 @@ Std_ReturnType spi_deinit(const spi_t *const spi_obj)
     return (ret);
 }
 /**
- * @brief Read the status of the SPI buffer
- * @return the status of the BF flag in SSPSTAT register
- */
-static inline uint8 is_spi_buffer_full(void)
-{
-    return SSPSTATbits.BF;
-}
-/**
- * @brief Poll and read the SPI Buffer
- * @return the SPI Buffer
- */
-static inline uint8 read_spi_buffer(void)
-{
-    while (!is_spi_buffer_full());
-    return SSPBUF;
-}
-/**
- * @brief Read the status of the Write Collision of SPI Buffer
- * @return the status of the WCOL flag in the SSPSTAT register
- */
-static inline uint8 is_spi_write_collision(void)
-{
-    return SSPCON1bits.WCOL;
-}
-/**
- * @brief Read the status of the SPI interrupt flag
- * @return the status of the SPI interrupt flag
- */
-static inline uint8 spi_interrupt_flag(void)
-{
-    return PIR1bits.SSPIF;
-}
-/**
- * @brief Clear the SPI interrupt flag
- */
-static inline void clear_spi_interrupt_flag(void)
-{
-    PIR1bits.SSPIF = 0;
-}
-/**
  * @brief Clear the Write Collision flag
  */
 static inline void clear_spi_write_collision(void)
 {
     SSPCON1bits.WCOL = _SPI_WRITE_NO_COLLISION;
-}
-/**
- * @brief Clear the SPI Receive Overflow
- */
-static inline void clear_spi_receive_overflow(void)
-{
-    SSPCON1bits.SSPOV = _SPI_SLAVE_RECEIVE_NO_OVERFLOW;
-}
-/**
- * @brief poll the SPI interrupt flag to wait for the current operation to end
- */
-static inline void poll_spi_interrupt_flag(void)
-{
-    /* Wait for the transmission to complete */
-    while (!spi_interrupt_flag());
-    /* Clear the interrupt flag for the next operation */
-    clear_spi_interrupt_flag(); 
 }
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_ENABLE
 /**
@@ -310,7 +257,7 @@ static inline Std_ReturnType set_spi_interrupt_handler(INTERRUPT_HANDLER spi_int
     return (ret);
 }
 /**
- * @brief the interrupt service routine of SPI Module
+ * @brief the interrupt service routine of SPI Module Master Mode
  */
 void SPI_MASTER_ISR(void)
 {
@@ -331,7 +278,67 @@ void SPI_MASTER_ISR(void)
         /* Call the interrupt handler */
         spi_interrupt_handler();
     }
-    
+}
+/**
+ * @brief the interrupt service routine of SPI Module Slave Mode
+ * @param mode the mode of the SPI Slave function mode
+ */
+void SPI_SLAVE_ISR(uint8 mode)
+{
+    /* Call the Correct Working mode (sending/receiving) */
+    if (SPI_SLAVE_SEND_MODE == mode)
+    {
+        SPI_SLAVE_SEND_ISR();
+    }
+    else if (SPI_SLAVE_RECEIVE_MODE == mode)
+    {
+        SPI_SLAVE_RECEIVE_ISR();
+    }
+    /* Clear the SPI interrupt flag */
+    SPI_INTERRUPT_FLAG_BIT_CLEAR();
+    /* Call the interrupt handler */
+    if (NULL != spi_interrupt_handler)
+    {
+        spi_interrupt_handler();
+    }
+}
+/**
+ * @brief the interrupt service routine of SPI Module Slave Receive Mode
+ */
+static void inline SPI_SLAVE_RECEIVE_ISR(void)
+{
+    /* Read the data in SPI Slave receive Mode */
+    if (NULL != data_received)
+    {
+        *data_received = SSPBUF;
+    }
+    /** Make the pointer point to null to make the functionality of receiving
+     *  independent of each other
+     */
+    data_received = NULL;
+}
+/**
+ * @brief the interrupt service routine of SPI Module Slave Send Mode
+ */
+static void inline SPI_SLAVE_SEND_ISR(void)
+{
+    /* Read the Data to avoid Receive Overflow */
+    slave_data_received = SSPBUF;
+    /* Send the data in SPI Slave Send Mode */
+    if (NULL != slave_data_sent)
+    {
+        SSPBUF = *slave_data_sent;
+        if (_SPI_WRITE_COLLISION == SSPCON1bits.WCOL)
+        {
+            /* Collision is detected */
+            /* Clear the WCOL bit to continue SPI operations */
+            clear_spi_write_collision();
+        }
+    }
+    /** Make the pointer point to null to make the functionality of sending
+     *  independent of each other
+     */
+    slave_data_sent = NULL;
 }
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
 /**
@@ -381,6 +388,8 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
         ss_pin = (pin_config_t *)slave_ss_pin;
         /* Select the Slave SPI to send to it */
         if (NULL != ss_pin) ret = gpio_pin_write_logic(ss_pin, GPIO_LOW);
+        /* Choose the Correct SPI Mode to call the correct ISR */
+        SPI_MODE = SPI_MASTER_MODE;
         /* Write To the SSPBUF register to send data */
         SSPBUF = data;
         /* Check the Write Collision Status */
@@ -422,6 +431,8 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
         ss_pin = (pin_config_t *)slave_ss_pin;
         /* Select the Slave SPI to send to it */
         if (NULL != ss_pin) ret = gpio_pin_write_logic(ss_pin, GPIO_LOW);
+        /* Choose the Correct SPI Mode to call the correct ISR */
+        SPI_MODE = SPI_MASTER_MODE;
         /* Make the static pointer points to the returned address so when
            the ISR is called the data_received(which is @data) is updated */
         data_received = data;
@@ -436,7 +447,118 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
     } 
     return (ret);   
 }
+/**
+ * @brief: Send Data using Slave Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param data the data to send
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data)
+{
+    Std_ReturnType ret = E_OK;
+    
+    if (NULL == spi_obj)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        /* Only Slave Mode */
+        if (SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode || 
+                SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+        {
+            /* Make the Current mode is SPI Slave Send to call the correct ISR */
+            SPI_MODE = SPI_SLAVE_SEND_MODE;
+            slave_data_sent = (uint8 *)&data;
+        }
+    } 
+    return (ret);  
+}
+/**
+ * @brief: Receive Data using Slave Mode SPI Module
+ * @param spi_obj the SPI module object
+ * @param data the address to save the data read
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const data)
+{
+    Std_ReturnType ret = E_OK;
+
+    if (NULL == spi_obj || NULL == data)
+    {
+        ret = E_NOT_OK;
+    }
+    else
+    {
+        /* Only Slave Mode */
+        if (SPI_SLAVE_MODE_SS_ENABLED == spi_obj->spi_mode || 
+                SPI_SLAVE_MODE_SS_DISABLED == spi_obj->spi_mode)
+        {
+            /* Make the Current mode is SPI Slave receive to call the correct ISR */
+            SPI_MODE = SPI_SLAVE_RECEIVE_MODE;
+            data_received = data;
+        }
+    }  
+    return (ret);
+}
 #else
+/**
+ * @brief Read the status of the SPI buffer
+ * @return the status of the BF flag in SSPSTAT register
+ */
+static inline uint8 is_spi_buffer_full(void)
+{
+    return SSPSTATbits.BF;
+}
+/**
+ * @brief Poll and read the SPI Buffer
+ * @return the SPI Buffer
+ */
+static inline uint8 read_spi_buffer(void)
+{
+    while (!is_spi_buffer_full());
+    return SSPBUF;
+}
+/**
+ * @brief Read the status of the Write Collision of SPI Buffer
+ * @return the status of the WCOL flag in the SSPSTAT register
+ */
+static inline uint8 is_spi_write_collision(void)
+{
+    return SSPCON1bits.WCOL;
+}
+/**
+ * @brief Read the status of the SPI interrupt flag
+ * @return the status of the SPI interrupt flag
+ */
+static inline uint8 spi_interrupt_flag(void)
+{
+    return PIR1bits.SSPIF;
+}
+/**
+ * @brief Clear the SPI interrupt flag
+ */
+static inline void clear_spi_interrupt_flag(void)
+{
+    PIR1bits.SSPIF = 0;
+}
+/**
+ * @brief Clear the SPI Receive Overflow
+ */
+static inline void clear_spi_receive_overflow(void)
+{
+    SSPCON1bits.SSPOV = _SPI_SLAVE_RECEIVE_NO_OVERFLOW;
+}
+/**
+ * @brief poll the SPI interrupt flag to wait for the current operation to end
+ */
+static inline void poll_spi_interrupt_flag(void)
+{
+    /* Wait for the transmission to complete */
+    while (!spi_interrupt_flag());
+    /* Clear the interrupt flag for the next operation */
+    clear_spi_interrupt_flag(); 
+}
 /**
  * @brief: Send Data using Master Mode SPI Module
  * @note: It use Polling mechanism to send the data(Polling BF flag)
