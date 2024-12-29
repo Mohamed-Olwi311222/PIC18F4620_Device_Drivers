@@ -21,10 +21,27 @@ static volatile uint8 RB7_Flag = RBx_FLAG_TRUE;          /*A flag to indicates t
 void __interrupt() Interrupt_Manager_High(void)
 {
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
-    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF))
+    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
+            (SPI_MASTER_MODE == SPI_MODE))
     {
         /* Call the ISR of the SPI Master Mode interrupt */
         SPI_MASTER_ISR();
+    }
+#endif
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
+            (SPI_SLAVE_SEND_MODE == SPI_MODE))
+    {
+        /* Call the ISR of the SPI Slave Send Mode interrupt */
+        SPI_SLAVE_ISR(SPI_SLAVE_SEND_MODE);
+    }
+#endif
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
+            (SPI_SLAVE_RECEIVE_MODE == SPI_MODE))
+    {
+        /* Call the ISR of the SPI Slave Receive Mode interrupt */
+        SPI_SLAVE_ISR(SPI_SLAVE_RECEIVE_MODE);
     }
 #endif
 #if ADC_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
