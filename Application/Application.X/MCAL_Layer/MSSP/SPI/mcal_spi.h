@@ -165,7 +165,7 @@ Std_ReturnType spi_deinit(const spi_t *const spi_obj);
  * @param data the data to send
  * @return E_OK if success otherwise E_NOT_OK
  */
-Std_ReturnType spi_master_send_data(const spi_t *const spi_obj, 
+Std_ReturnType inline spi_master_send_data(const spi_t *const spi_obj, 
                                     const pin_config_t *const slave_ss_pin,
                                      const uint8 data);
 /**
@@ -176,7 +176,7 @@ Std_ReturnType spi_master_send_data(const spi_t *const spi_obj,
  * @param data the address to save the data read
  * @return E_OK if success otherwise E_NOT_OK
  */
-Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj, 
+Std_ReturnType inline spi_master_receive_data(const spi_t *const spi_obj, 
                                     const pin_config_t *const slave_ss_pin,
                                      uint8 *const data);
 /**
@@ -185,13 +185,13 @@ Std_ReturnType spi_master_receive_data(const spi_t *const spi_obj,
  * @param data the data to send
  * @return E_OK if success otherwise E_NOT_OK
  */
-Std_ReturnType spi_slave_send_data(const spi_t *const spi_obj, const uint8 data);
+Std_ReturnType inline spi_slave_send_data(const spi_t *const spi_obj, const uint8 data);
 /**
  * @brief: Receive Data using Slave Mode SPI Module
  * @param spi_obj the SPI module object
  * @param data the address to save the data read
  * @return E_OK if success otherwise E_NOT_OK
  */
-Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const data);
+Std_ReturnType inline spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const data);
 #endif	/* MCAL_SPI_H */
 
