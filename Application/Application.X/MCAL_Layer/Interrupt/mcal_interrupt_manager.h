@@ -10,7 +10,6 @@
 /*----------------------------Header Files-----------------------------------------------------------------*/
 #include "mcal_interrupt_config.h"
 /*----------------------------Function Prototypes----------------------------------------------------------*/
-
 /*--------------------------------INTx ISRS------------------------------------*/
 /**
  * @brief: The interrupt service routine of INT0, will be called if INT0 interrupt has been raised
@@ -103,5 +102,10 @@ void EUSART_RX_ISR(void);
  * @brief the interrupt service routine of SPI Module Master Mode
  */
 void SPI_MASTER_ISR(void);
+/**
+ * @brief the interrupt service routine of SPI Module Slave Mode
+ * @param mode the mode of the SPI Slave function mode
+ */
+void SPI_SLAVE_ISR(uint8 mode);
 #endif	/* MCAL_INTERRUPT_MANAGER_H */
 
