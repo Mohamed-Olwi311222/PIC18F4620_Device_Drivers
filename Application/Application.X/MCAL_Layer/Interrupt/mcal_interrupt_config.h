@@ -22,6 +22,9 @@
 #define INTERRUPT_PRIORITY_DISABLE                      1 /*Interrupt Priority is disabled*/
 #define RBx_FLAG_TRUE                                   1 /*True Flag to the ISR*/
 #define RBx_FLAG_FALSE                                  0 /*False Flag to the ISR*/
+#define SPI_MASTER_MODE                                 2 /* A macro to chose the mode of the SPI Master ISR */
+#define SPI_SLAVE_SEND_MODE                             1 /* A macro to chose the mode of the SPI Slave Send ISR */
+#define SPI_SLAVE_RECEIVE_MODE                          0 /* A macro to chose the mode of the SPI Slave Receive ISR */
 /*----------------------------Macros Functions Declarations-------------------*/
 
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
@@ -72,6 +75,11 @@
 #endif
 /*----------------------------DataTypes---------------------------------------*/
 typedef void (*INTERRUPT_HANDLER) (void); /*Interrupt handler for callback functions*/
+
+#if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+/* Extern variable to choose the correct SPI Slave function mode */
+volatile uint8 SPI_MODE;
+#endif 
 
 /**
  * an enum accessible by all interrupts for controling the priority levels
