@@ -5,7 +5,7 @@
  * Created on 12 December 2024, 00:36
  */
 #include "mcal_spi.h"
-
+#if SPI_MODULE_ENABLE == MCAL_ENABLED
 /*---------------Static Data types----------------------------------------------*/
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
@@ -708,4 +708,5 @@ Std_ReturnType spi_slave_receive_data(const spi_t *const spi_obj, uint8 *const d
     }  
     return (ret);
 }
+#endif
 #endif
