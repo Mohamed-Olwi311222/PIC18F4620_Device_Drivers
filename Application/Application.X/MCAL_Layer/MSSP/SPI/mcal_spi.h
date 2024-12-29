@@ -12,6 +12,7 @@
 #include "../../GPIO/hal_gpio.h"
 #include <xc.h>
 #include "../../Interrupt/mcal_internal_interrupt.h"
+#include "../../Interrupt/mcal_interrupt_manager.h"
 #include "../../mcal_layer_cfg.h"
 /*----------------------------Macros Declarations-----------------------------*/
 #define SPI_DUMMY_DATA                                    0xFF /* Dummy data to send in master mode to initiate the CLK line */
