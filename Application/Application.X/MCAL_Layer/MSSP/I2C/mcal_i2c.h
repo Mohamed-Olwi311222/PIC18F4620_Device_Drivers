@@ -101,6 +101,142 @@
 #define _I2C_SLAVE_CLK_STRETCHING_ENABLE                     1 /* Clock stretching is enabled for both slave transmit and slave receive (stretch enabled) */
 #define _I2C_SLAVE_CLK_STRETCHING_DISABLE                    0 /* Clock stretching is disabled */
 /*----------------------------Macros Functions Declarations-------------------*/
+/*==================SSPSTAT REG================*/
+/*----------SMP Bit-----------*/
+/**
+ * Disable Slew rate control disabled for Standard Speed mode (100 kHz)
+ */
+#define I2C_SLEW_RATE_CONTROL_DISABLE_CONFIG()               (SSPSTATbits.SMP = _I2C_SLEW_RATE_CONTROL_DISABLE)
+/**
+ * Enable Slew rate control enabled for High-Speed mode (400 kHz) 
+ */
+#define I2C_SLEW_RATE_CONTROL_ENABLE_CONFIG()                (SSPSTATbits.SMP =  _I2C_SLEW_RATE_CONTROL_ENABLE)
+/*----------CKE Bit-----------*/
+/**
+ * Enable SMBus specific inputs 
+ */
+#define I2C_SMBUS_ENABLE_CONFIG()                            (SSPSTATbits.CKE = _I2C_SMBUS_ENABLE)
+/**
+ * Disable SMBus specific inputs 
+ */
+#define I2C_SMBUS_DISABLE_CONFIG()                           (SSPSTATbits.CKE = _I2C_SMBUS_DISABLE)
+/*----------D/A Bit-----------*/
+/*---Slave---*/
+/**
+ * Read the type of the last byte received or transmitted and store it in an address given
+ */
+#define I2C_SLAVE_DATA_TYPE_CONFIG(__ADDR)                   (*__ADDR = SSPSTATbits.D_A)
+/*----------P Bit-------------*/
+/**
+ * Read the status of the Stop bit and store it in an address given 
+ */
+#define I2C_READ_STOP_BIT_STATUS_CONFIG(__ADDR)              (*__ADDR = SSPSTATbits.P)
+/*----------S Bit-------------*/
+/**
+ * Read the status of the Start bit and store it in an address given 
+ */
+#define I2C_READ_START_BIT_STATUS_CONFIG(__ADDR)             (*__ADDR = SSPSTATbits.S)
+/*----------R/W Bit-----------*/
+/*---Slave---*/
+/**
+ * Read the type of the operation of the slave and store it in an address given
+ */
+#define I2C_SLAVE_OPERATION_MODE_TYPE_CONFIG(__ADDR)         (*__ADDR = SSPSTATbits.R_W)
+/*---Master---*/
+/**
+ * Read the status of the master transmission and store it in an address given
+ */
+#define I2C_MASTER_TRANSMISSION_STATUS_CONFIG(__ADDR)        (*__ADDR = SSPSTATbits.R_W)
+/*----------UA Bit------------*/
+/*---Slave---*/
+/**
+ * Read the status of the update address bit and store it in an address given
+ */
+#define I2C_SLAVE_UPDATE_ADDR_STATUS_CONFIG(__ADDR)          (*__ADDR = SSPSTATbits.UA)
+/*----------BF Bit------------*/
+/**
+ * Read the Status of the I2C buffer register and store it in an address given
+ */
+#define I2C_READ_BUFFER_STATUS_CONFIG(__ADDR)                (*__ADDR = SSPSTATbits.BF)
+/*==================SSPCON1 REG================*/
+/*----------WCOL Bit----------*/
+/*---Master---*/
+/**
+ * Read the Status of the I2C Master Write collision and store it in an address given
+ */
+#define I2C_MASTER_READ_WRITE_COL_STATUS_CONFIG(__ADDR)      (*__ADD = SSPCON1bits.WCOL)
+/**
+ * Clear the Status of the I2C Master Write collision
+ */
+#define I2C_MASTER_CLEAR_WRITE_COL_STATUS_CONFIG()           (SSPCON1bits.WCOL = _I2C_MASTER_WRITE_NO_COLLISION)
+/*---Slave---*/
+/**
+ * Read the Status of the I2C Slave Write collision and store it in an address given
+ */
+#define I2C_SLAVE_READ_WRITE_COL_STATUS_CONFIG(__ADDR)       (*__ADD = SSPCON1bits.WCOL)
+/**
+ * Clear the Status of the I2C Slave Write collision bit
+ */
+#define I2C_SLAVE_CLEAR_WRITE_COL_STATUS_CONFIG()            (SSPCON1bits.WCOL = _I2C_SLAVE_WRITE_NO_COLLISION)
+/*----------SSPOV Bit---------*/
+/**
+ * Read the Status of receive overflow bit and store it in an address given
+ */
+#define I2C_READ_RECEIVE_OVERFLOW_STATUS_CONFIG(__ADDR)      (*__ADD = SSPCON1bits.SSPOV)
+/**
+ * Clear the Status of the I2C receive overflow bit
+ */
+#define I2C_SLAVE_CLEAR_OVERFLOW_STATUS_CONFIG()             (SSPCON1bits.SSPOV = _I2C_RECEIVE_NO_OVERFLOW)
+/*----------SSPEN Bit---------*/
+/**
+ * Enable the I2C serial port and configures the SDA and SCL pins as the serial port pins 
+ */
+#define I2C_SERIAL_PORT_ENABLE_CONFIG()                      (SSPCON1bits.SSPEN = _I2C_ENABLE_SERIAL_PORT)
+/**
+ * Disable the I2C serial port and configures the SDA and SCL pin as I/O port pins
+ */
+#define I2C_SERIAL_PORT_DISABLE_CONFIG()                     (SSPCON1bits.SSPEN = _I2C_DISABLE_SERIAL_PORT)
+/*----------CKP Bit-----------*/
+/*---Slave---*/
+/**
+ * Release the CLK given to the Slave
+ */
+#define I2C_SLAVE_RELEASE_CLK_CONFIG()                       (SSPCON1bits.CKP = _I2C_SLAVE_RELEASE_CLK)
+/**
+ * Holds the CLK Low(clock stretch) given to the Slave
+ */
+#define I2C_SLAVE_HOLD_CLK_CONFIG()                          (SSPCON1bits.CKP = _I2C_SLAVE_HOLD_CLK_LOW)
+/*----------SSPM3:SSPM0 Bits--*/
+/**
+ * Set the I2C operation mode @ref i2c_mode_t
+ */
+#define I2C_SET_OPERATION_MODE(__MODE)                       (SSPCON1bits.SSPM = __MODE)
+/*==================SSPCON2 REG================*/
+/*----------CGEN Bit----------*/
+/*---Slave---*/
+
+/*----------ACKSTAT Bit-------*/
+/*---Master---*/
+
+/*----------ACKDT Bit---------*/
+/*---Master---*/
+
+/*----------ACKEN Bit---------*/
+/*---Master---*/
+
+/*----------RCEN Bit----------*/
+/*---Master---*/
+
+/*----------PEN Bit-----------*/
+/*---Master---*/
+
+/*----------RSEN Bit----------*/
+/*---Master---*/
+
+/*----------SEN Bit-----------*/
+/*---Master---*/
+
+/*---Slave---*/
 
 /*----------------------------DataTypes---------------------------------------*/
 /**
@@ -115,6 +251,16 @@ typedef enum
     I2C_FIRMWARE_CONTROLLER_MASTER_MODE = 0x0B,
     I2C_MASTER_MODE
 } i2c_mode_t;
+
+typedef struct
+{
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+    INTERRUPT_HANDLER i2c_interrupt;
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+    interrupt_priority_cfg i2c_interrupt_priority;
+#endif
+#endif 
+} i2c_t;
 /*----------------------------Function Prototypes-----------------------------*/
 #endif	/* MCAL_I2C_H */
 
