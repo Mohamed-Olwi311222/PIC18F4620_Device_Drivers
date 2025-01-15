@@ -37,7 +37,7 @@ PIC18F4620_Device_Drivers/
 
 ### Prerequisites
 - **MPLAB X IDE**: Ensure you have the latest version of MPLAB X installed.
-- **XC8 Compiler**: The drivers are written for the XC8 compiler. Ensure the appropriate version is installed and configured.
+- **XC8 Compiler**: The drivers are written for the XC8 compiler. Ensure the appropriate version is installed and configured (recommended v2.46).
 - **PICkit or Similar Programmer**: Required for uploading the compiled code to the PIC18F4620.
 
 ### Installation
