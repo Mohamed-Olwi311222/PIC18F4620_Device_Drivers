@@ -214,30 +214,77 @@
 /*==================SSPCON2 REG================*/
 /*----------CGEN Bit----------*/
 /*---Slave---*/
-
+/**
+ * Enable General Call interrupt in I2C Slave Mode
+ */
+#define I2C_SLAVE_ENABLE_GENERAL_CALL_INTERRUPT_CONFIG()     (SSPCON2bits.GCEN = _I2C_SLAVE_GENERAL_CALL_ENABLE)
+/**
+ * Disable General Call interrupt in I2C Slave Mode
+ */
+#define I2C_SLAVE_DISABLE_GENERAL_CALL_INTERRUPT_CONFIG()    (SSPCON2bits.GCEN = _I2C_SLAVE_GENERAL_CALL_DISABLE)
 /*----------ACKSTAT Bit-------*/
 /*---Master---*/
-
+/**
+ * Read the ACK from the slave in I2C Master Transmit Mode
+ */
+#define I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(__ADDR)   (*__ADDR = SSPCON2bits.ACKSTAT)
 /*----------ACKDT Bit---------*/
 /*---Master---*/
-
+/**
+ * Set the ACK to be send after initiation to the slave in I2C Master Receive Mode
+ */
+#define I2C_MASTER_RECEIVE_SET_ACK_CONFIG()                  (SSPCON2bits.ACKDT = _I2C_MASTER_ACK_RECEIVED_DATA)
+/**
+ * Set the NACK to be send after initiation to the slave in I2C Master Receive Mode
+ */
+#define I2C_MASTER_RECEIVE_SET_NACK_CONFIG()                 (SSPCON2bits.ACKDT = _I2C_MASTER_NACK_RECEIVED_DATA)
 /*----------ACKEN Bit---------*/
 /*---Master---*/
-
+/**
+ * Initiates Acknowledge sequence on SDA and SCL pins and transmit ACKDT data bit.
+ * Automatically cleared by hardware. 
+ */
+#define I2C_MASTER_RECEIVE_SEND_ACK_NACK_CONFIG()            (SSPCON2bits.ACKEN = _I2C_MASTER_ACK_SEQUENCE_ENABLE)
 /*----------RCEN Bit----------*/
 /*---Master---*/
-
+/**
+ * Enable I2C Master Receive Mode
+ */
+#define I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG()              (SSPCON2bits.RCEN = _I2C_MASTER_RECEIVE_ENABLE)
+/**
+ * Disable I2C Master Receive Mode
+ */
+#define I2C_MASTER_DISABLE_RECEIVE_MODE_CONFIG()             (SSPCON2bits.RCEN = _I2C_MASTER_RECEIVE_DISABLE)
 /*----------PEN Bit-----------*/
 /*---Master---*/
-
+/**
+ * Initiates Stop condition on SDA and SCL pins.
+ * Automatically cleared by hardware. 
+ */
+#define I2C_MASTER_SEND_STOP_COND_CONFIG()                   (SSPCON2bits.PEN = _I2C_MASTER_SEND_STOP_COND)
 /*----------RSEN Bit----------*/
 /*---Master---*/
-
+/**
+ * Initiates Repeated Start condition on SDA and SCL pins.
+ * Automatically cleared by hardware. 
+ */
+#define I2C_MASTER_SEND_REPEATED_START_CONFIG()              (SSPCON2bits.PEN = _I2C_MASTER_SEND_REPEATED_START_COND)
 /*----------SEN Bit-----------*/
 /*---Master---*/
-
+/**
+ * Initiates Start condition on SDA and SCL pins.
+ * Automatically cleared by hardware. 
+ */
+#define I2C_MASTER_SEND_START_CONFIG()                       (SSPCON2bits.PEN = _I2C_MASTER_SEND_START_COND)
 /*---Slave---*/
-
+/**
+ * Clock stretching is enabled for both slave transmit and slave receive (stretch enabled)
+ */
+#define I2C_SLAVE_ENABLE_CLK_STRETCH_CONFIG()                (SSPCON2bits.SEN = _I2C_SLAVE_CLK_STRETCHING_ENABLE)
+/**
+ * Clock stretching is disabled for both slave transmit and slave receive (stretch disabled)
+ */
+#define I2C_SLAVE_DISABLE_CLK_STRETCH_CONFIG()               (SSPCON2bits.SEN = _I2C_SLAVE_CLK_STRETCHING_DISABLE)
 /*----------------------------DataTypes---------------------------------------*/
 /**
  * @brief: An enum for selecting I2C modes
