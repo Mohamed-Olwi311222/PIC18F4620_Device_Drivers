@@ -285,6 +285,11 @@
  * Clock stretching is disabled for both slave transmit and slave receive (stretch disabled)
  */
 #define I2C_SLAVE_DISABLE_CLK_STRETCH_CONFIG()               (SSPCON2bits.SEN = _I2C_SLAVE_CLK_STRETCHING_DISABLE)
+/*==================SSPADD REG=================*/
+/**
+ * Set the I2C Slave Address
+ */
+#define I2C_SLAVE_SET_ADDR_CONFIG(__SLAVE_ADDR)              (SSPADD = __SLAVE_ADDR)
 /*----------------------------DataTypes---------------------------------------*/
 /**
  * @brief: An enum for selecting I2C modes
@@ -296,7 +301,7 @@ typedef enum
     I2C_SLAVE_MODE_7_BIT_ADDR_START_STOP_INTERRUPTS_ON = 0x0E,
     I2C_SLAVE_MODE_7_BIT_ADDR_START_STOP_INTERRUPTS_OFF = 0x06, 
     I2C_FIRMWARE_CONTROLLER_MASTER_MODE = 0x0B,
-    I2C_MASTER_MODE
+    I2C_MASTER_MODE = 0x08
 } i2c_mode_t;
 
 typedef struct
@@ -307,7 +312,20 @@ typedef struct
     interrupt_priority_cfg i2c_interrupt_priority;
 #endif
 #endif 
+    i2c_mode_t i2c_mode;
+    uint16 i2c_slave_mode_addr : 10;
+    uint16 i2c_slave_general_call_enable : 1;
+    uint16 i2c_master_receive_enable : 1;
+    uint16 i2c_smbus_enable : 1;
+    uint16 i2c_slew_rate_control : 1;
+    uint16 RESERVED : 2;
 } i2c_t;
 /*----------------------------Function Prototypes-----------------------------*/
+/**
+ * @brief: Initialize the I2C module
+ * @param i2c_obj the I2C module object
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_init(const i2c_t *const i2c_obj);
 #endif	/* MCAL_I2C_H */
 
