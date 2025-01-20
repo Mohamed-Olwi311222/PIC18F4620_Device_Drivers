@@ -4,18 +4,23 @@
 static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
 #endif
 /* SCK (Serial Clock) pin */
-static const pin_config_t SCK_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
+static pin_config_t SCK_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
 /* SDI (Serial Data) pin */
-static const pin_config_t SDI_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN4};
+static pin_config_t SDI_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN4};
+/* The first 7 bits of the Slave address*/
+static uint8 slave_low_byte_addr = ZERO_INIT;
+/* The 2 MSBs of the 10-bit Slave Address */
+static uint8 slave_high_byte_addr = ZERO_INIT;
 /*---------------Static Data types End------------------------------------------*/
 
 /*---------------Static Helper functions declerations---------------------------*/
+static inline Std_ReturnType configure_i2c_pins(void);
 static inline void configure_i2c_slew_rate(const i2c_t *const i2c_obj);
 static inline void configure_i2c_smbus_specific_inputs(const i2c_t *const i2c_obj);
 static inline Std_ReturnType configure_i2c_mode(const i2c_t *const i2c_obj);
-static inline Std_ReturnType configure_master_mode(const i2c_t *const i2c_obj);
-static inline Std_ReturnType configure_slave_mode(const i2c_t *const i2c_obj);
-static inline Std_ReturnType select_slave_mode(const i2c_t *const i2c_obj);
+static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj);
+static inline Std_ReturnType configure_i2c_slave_mode(const i2c_t *const i2c_obj);
+static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj);
 /*----Interrupt helper functions----*/
 
 /*---------------Static Helper functions declerations End-----------------------*/
@@ -36,6 +41,12 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
     {
         /* Disable Serial Port */
         I2C_SERIAL_PORT_DISABLE_CONFIG();
+        /* Configure the I2C Pins */
+        if (E_NOT_OK == configure_i2c_pins())
+        {
+            /* Error in configuring the i2c pins */
+            return_status = E_NOT_OK; 
+        }
         /* Enable and Select I2C Module depending on the mode selected */
         if (E_NOT_OK == configure_i2c_mode(i2c_obj))
         {
@@ -51,6 +62,32 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
     }
     return (return_status);
 }
+/**
+ * @brief: Configure the SCK pin and SDI pin to be both inputs
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType configure_i2c_pins(void)
+{
+    Std_ReturnType return_status = E_OK;
+
+    /* Configure the SCK Pin to be input */
+    SCK_pin.direction = GPIO_DIRECTION_INPUT;
+    if (gpio_pin_direction_initialize(&SCK_pin) == E_NOT_OK)
+    {
+        /* Error in configuring the SCK pin */
+        return_status = E_NOT_OK;
+    }
+    
+    /* Configure the SDI Pin to be input */
+    SDI_pin.direction = GPIO_DIRECTION_INPUT;
+    if (gpio_pin_direction_initialize(&SDI_pin) == E_NOT_OK)
+    {
+        /* Error in configuring the SDI pin */
+        return_status = E_NOT_OK;
+    }
+    return (return_status);
+}
+
 /**
  * @brief: Configure the Slew rate of the I2C Module
  * @param i2c_obj the I2C module object
@@ -102,12 +139,12 @@ static inline Std_ReturnType configure_i2c_mode(const i2c_t *const i2c_obj)
         I2C_MASTER_MODE ==i2c_obj->i2c_mode )
     {
         /* Configure Master Mode if selected */
-        return_status = configure_master_mode(i2c_obj);
+        return_status = configure_i2c_master_mode(i2c_obj);
     }
     else
     {
         /* Configure Slave Mode if selected */
-        return_status = configure_slave_mode(i2c_obj);  
+        return_status = configure_i2c_slave_mode(i2c_obj);  
     }
     return (return_status);
 }
@@ -116,7 +153,7 @@ static inline Std_ReturnType configure_i2c_mode(const i2c_t *const i2c_obj)
  * @param i2c_obj the I2C module object
  * @return E_OK if success otherwise E_NOT_OK
  */
-static inline Std_ReturnType configure_master_mode(const i2c_t *const i2c_obj)
+static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj)
 {
     Std_ReturnType return_status = E_NOT_OK;
     
@@ -127,25 +164,9 @@ static inline Std_ReturnType configure_master_mode(const i2c_t *const i2c_obj)
  * @param i2c_obj the I2C module object
  * @return E_OK if success otherwise E_NOT_OK
  */
-static inline Std_ReturnType configure_slave_mode(const i2c_t *const i2c_obj)
+static inline Std_ReturnType configure_i2c_slave_mode(const i2c_t *const i2c_obj)
 {
     Std_ReturnType return_status = E_OK;
-    
-    /* Configure the SCK Pin to be input */
-    SCK_pin.direction = GPIO_DIRECTION_INPUT;
-    if (gpio_pin_direction_initialize(&SCK_pin) == E_NOT_OK)
-    {
-        /* Error in configuring the SCK pin */
-        return_status = E_NOT_OK;
-    }
-    
-    /* Configure the SDI Pin to be input */
-    SDI_pin.direction = GPIO_DIRECTION_INPUT;
-    if (gpio_pin_direction_initialize(&SDI_pin) == E_NOT_OK)
-    {
-        /* Error in configuring the SDI pin */
-        return_status = E_NOT_OK;
-    }
     
     /* Enable/Disable General Call interrupt */
     if (_I2C_SLAVE_GENERAL_CALL_ENABLE == i2c_obj->i2c_slave_general_call_enable)
@@ -156,16 +177,14 @@ static inline Std_ReturnType configure_slave_mode(const i2c_t *const i2c_obj)
     {
         I2C_SLAVE_DISABLE_GENERAL_CALL_INTERRUPT_CONFIG(); 
     }
-    
+
     /* Set the slave mode selected by the user */
-    if (select_slave_mode(i2c_obj) == E_NOT_OK)
+    if (select_i2c_slave_mode(i2c_obj) == E_NOT_OK)
     {
         /* Error in setting the mode */
         return_status = E_NOT_OK; 
     }
-    
-    /* Set the address of the slave mode */
-    I2C_SLAVE_SET_ADDR_CONFIG(i2c_obj->i2c_slave_mode_addr);
+
     return (return_status);
 }
 /**
@@ -173,7 +192,7 @@ static inline Std_ReturnType configure_slave_mode(const i2c_t *const i2c_obj)
  * @param i2c_obj the I2C module object
  * @return E_OK if success otherwise E_NOT_OK
  */
-static inline Std_ReturnType select_slave_mode(const i2c_t *const i2c_obj)
+static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj)
 {
     Std_ReturnType return_status = E_OK;
     i2c_mode_t slave_mode = ZERO_INIT;
@@ -184,9 +203,13 @@ static inline Std_ReturnType select_slave_mode(const i2c_t *const i2c_obj)
         /* 10-bit Addr Modes */    
         case I2C_SLAVE_MODE_10_BIT_ADDR_START_STOP_INTERRUPTS_ON:
             slave_mode = I2C_SLAVE_MODE_10_BIT_ADDR_START_STOP_INTERRUPTS_ON;
+            /* Set the 2 MSBs of the 10-bit Slave address */
+            slave_high_byte_addr = (uint8)(i2c_obj->i2c_slave_mode_addr) >> 8;
             break;
         case I2C_SLAVE_MODE_10_BIT_ADDR_START_STOP_INTERRUPTS_OFF:
             slave_mode = I2C_SLAVE_MODE_10_BIT_ADDR_START_STOP_INTERRUPTS_OFF;
+            /* Set the 2 MSBs of the 10-bit Slave address */
+            slave_high_byte_addr = (uint8)(i2c_obj->i2c_slave_mode_addr) >> 8;
             break;
             
         /* 7-bit Addr Modes */    
@@ -201,6 +224,8 @@ static inline Std_ReturnType select_slave_mode(const i2c_t *const i2c_obj)
             return_status = E_NOT_OK;
             break;
     }
+    /* Set the 7 bit address of the slave */
+    slave_low_byte_addr = (uint8)(i2c_obj->i2c_slave_mode_addr);
     /* If no error happened, set the SSPM3:SSPM0 bits */
     if (E_OK == return_status)
     {
