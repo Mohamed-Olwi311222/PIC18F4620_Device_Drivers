@@ -37,7 +37,7 @@
 #define _I2C_SLAVE_READ_MODE                                 1 /* In Slave mode Read */
 #define _I2C_SLAVE_WRITE_MODE                                0 /* In Slave mode Write */
 /*---Master---*/
-#define _I2C_MASTER_TRANSMIT_IN_PROGRESS                     1 /* In Master mode Transmit is in progress */
+#define _I2C_MASTER_TRANSMIT_NOT_IN_PROGRESS                 1 /* In Master mode Transmit is in progress */
 #define _I2C_MASTER_TRANSMIT_IN_PROGRESS                     0 /* In Master mode Transmit is not in progress */
 /*----------UA Bit------------*/
 /*---Slave---*/
@@ -313,12 +313,12 @@ typedef struct
 #endif
 #endif 
     i2c_mode_t i2c_mode;
-    uint16 i2c_slave_mode_addr : 10;
-    uint16 i2c_slave_general_call_enable : 1;
-    uint16 i2c_master_receive_enable : 1;
-    uint16 i2c_smbus_enable : 1;
-    uint16 i2c_slew_rate_control : 1;
-    uint16 RESERVED : 2;
+    uint16 i2c_slave_mode_addr;
+    uint8 i2c_slave_general_call_enable : 1;
+    uint8 i2c_master_receive_enable : 1;
+    uint8 i2c_smbus_enable : 1;
+    uint8 i2c_slew_rate_control : 1;
+    uint8 RESERVED : 4;
 } i2c_t;
 /*----------------------------Function Prototypes-----------------------------*/
 /**
