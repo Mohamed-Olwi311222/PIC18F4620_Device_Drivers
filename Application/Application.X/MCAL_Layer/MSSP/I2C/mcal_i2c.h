@@ -303,7 +303,25 @@ typedef enum
     I2C_FIRMWARE_CONTROLLER_MASTER_MODE = 0x0B,
     I2C_MASTER_MODE = 0x08
 } i2c_mode_t;
-
+/**
+ * @brief: An enum for selecting the I2C Speed
+ */
+typedef enum
+{
+    I2C_100KB_STANDARD_MODE = 100,
+    I2C_400KB_FAST_MODE = 400,
+    I2C_1MB_FAST_MODE_PLUS = 1000,
+} i2c_master_speed_t;
+/**
+ * struct i2c_t - A Struct for I2C Mode of MSSP Module
+ * @i2c_slave_mode_addr: The slave address to set in slave mode
+ * @i2c_mode: The I2C mode to select
+ * @i2c_master_speed: The speed to set of the I2C module (MASTER ONLY)
+ * @i2c_slave_general_call_enable: Enable or disable the slave general call interrupt
+ * @i2c_master_receive_enable: Enable or disable the I2C master receive mode
+ * @i2c_smbus_enable: Enable or disable the SMBUS specific inputs
+ * @i2c_slew_rate_control: Enable or disable the slew rate control
+ */
 typedef struct
 {
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
@@ -312,8 +330,9 @@ typedef struct
     interrupt_priority_cfg i2c_interrupt_priority;
 #endif
 #endif 
-    i2c_mode_t i2c_mode;
     uint16 i2c_slave_mode_addr;
+    i2c_mode_t i2c_mode;
+    i2c_master_speed_t i2c_master_speed;
     uint8 i2c_slave_general_call_enable : 1;
     uint8 i2c_master_receive_enable : 1;
     uint8 i2c_smbus_enable : 1;
