@@ -18,9 +18,13 @@ static inline Std_ReturnType configure_i2c_pins(void);
 static inline void configure_i2c_slew_rate(const i2c_t *const i2c_obj);
 static inline void configure_i2c_smbus_specific_inputs(const i2c_t *const i2c_obj);
 static inline Std_ReturnType configure_i2c_mode(const i2c_t *const i2c_obj);
-static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj);
+/*----SLAVE Helper functions----*/
 static inline Std_ReturnType configure_i2c_slave_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj);
+/*----MASTER Helper functions---*/
+static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj);
+static inline Std_ReturnType select_i2c_master_mode(const i2c_t *const i2c_obj);
+static inline Std_ReturnType i2c_master_set_speed(const i2c_t *const i2c_obj);
 /*----Interrupt helper functions----*/
 
 /*---------------Static Helper functions declerations End-----------------------*/
@@ -62,6 +66,7 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
     }
     return (return_status);
 }
+/*---------------Static Helper functions definitions----------------------------*/
 /**
  * @brief: Configure the SCK pin and SDI pin to be both inputs
  * @return E_OK if success otherwise E_NOT_OK
@@ -87,7 +92,6 @@ static inline Std_ReturnType configure_i2c_pins(void)
     }
     return (return_status);
 }
-
 /**
  * @brief: Configure the Slew rate of the I2C Module
  * @param i2c_obj the I2C module object
@@ -148,17 +152,7 @@ static inline Std_ReturnType configure_i2c_mode(const i2c_t *const i2c_obj)
     }
     return (return_status);
 }
-/**
- * @brief: Configure the I2C Master Mode
- * @param i2c_obj the I2C module object
- * @return E_OK if success otherwise E_NOT_OK
- */
-static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj)
-{
-    Std_ReturnType return_status = E_NOT_OK;
-    
-    return (return_status);
-}
+/*---------------SLAVE Helper functions-----------------------------------------*/
 /**
  * @brief: Configure the I2C Slave Mode
  * @param i2c_obj the I2C module object
@@ -233,3 +227,101 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj)
     }
     return (return_status);
 }
+/*---------------MASTER Helper functions----------------------------------------*/
+/**
+ * @brief: Configure the I2C Master Mode
+ * @param i2c_obj the I2C module object
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj)
+{
+    Std_ReturnType return_status = E_NOT_OK;
+    
+    /* Set the Master mode selected by the user */
+    if (select_i2c_master_mode(i2c_obj) == E_NOT_OK)
+    {
+        /* Error in setting the mode */
+        return_status = E_NOT_OK; 
+    }
+    
+    /* Set the Speed of the I2C */
+    if (i2c_master_set_speed(i2c_obj) == E_NOT_OK)
+    {
+        /* Error in setting the Speed of the I2C */
+        return_status = E_NOT_OK; 
+    }
+    return (return_status);
+}
+/**
+ * 
+ * @param i2c_obj
+ * @return 
+ */
+static inline Std_ReturnType select_i2c_master_mode(const i2c_t *const i2c_obj)
+{
+    Std_ReturnType return_status = E_NOT_OK;
+    uint8 current_master_mode = ZERO_INIT;
+    
+    switch (i2c_obj->i2c_mode)
+    {
+        /* I2C Master mode, clock = FOSC/(4 * (SSPADD + 1)) */
+        case I2C_MASTER_MODE:
+            current_master_mode = I2C_MASTER_MODE;
+            break;
+            
+        /* I2C Firmware Controlled Master mode (Slave Idle) */
+        case I2C_FIRMWARE_CONTROLLER_MASTER_MODE:
+            current_master_mode = I2C_MASTER_MODE;
+            break;    
+            
+        default:
+            return_status = E_NOT_OK;
+            break;
+    }
+    /* If no error happened, set the SSPM3:SSPM0 bits */
+    if (E_OK == return_status)
+    {
+        I2C_SET_OPERATION_MODE(current_master_mode);
+    }
+    return (return_status);
+
+}
+/**
+ * @brief: Set the Speed of the I2C (Master Mode Only)
+ * @param i2c_obj
+ * @return 
+ */
+static inline Std_ReturnType i2c_master_set_speed(const i2c_t *const i2c_obj)
+{
+    Std_ReturnType return_status = E_OK;
+    uint32 i2c_clk = ZERO_INIT;
+    
+    /* Set the i2c_clk with the user chosen i2c speed */
+    switch (i2c_obj->i2c_master_speed)
+    {
+        case I2C_100KB_STANDARD_MODE:
+            i2c_clk = (uint32)(I2C_100KB_STANDARD_MODE * 1000ul);
+            break;
+            
+        case I2C_400KB_FAST_MODE:
+            i2c_clk = (uint32)(I2C_400KB_FAST_MODE * 1000ul);
+            break;
+            
+        case I2C_1MB_FAST_MODE_PLUS:
+            i2c_clk = (uint32)(I2C_1MB_FAST_MODE_PLUS * 1000ul);
+            break;
+            
+        default:
+            /* Unsupported Speed */
+            return_status = E_NOT_OK;
+            break;
+    }
+    /* Set the Speed of the I2C Communication Protocol */
+    SSPADD = (uint8)(((_XTAL_FREQ) / (4 * i2c_clk)) - 1);
+    
+    return (return_status);
+}
+/*---------------Interrupt Helper functions-------------------------------------*/
+
+
+/*---------------Static Helper functions definitions End------------------------*/
