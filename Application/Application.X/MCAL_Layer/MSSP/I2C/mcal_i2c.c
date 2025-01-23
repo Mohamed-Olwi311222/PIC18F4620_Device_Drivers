@@ -235,7 +235,7 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj)
  */
 static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj)
 {
-    Std_ReturnType return_status = E_NOT_OK;
+    Std_ReturnType return_status = E_OK;
     
     /* Set the Master mode selected by the user */
     if (select_i2c_master_mode(i2c_obj) == E_NOT_OK)
@@ -250,6 +250,18 @@ static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_ob
         /* Error in setting the Speed of the I2C */
         return_status = E_NOT_OK; 
     }
+    
+    /* Enable or disable master receive */
+    if (_I2C_MASTER_RECEIVE_ENABLE == i2c_obj->i2c_master_receive_enable)
+    {
+        /* Enable Master Receive Mode */
+        I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG();
+    }
+    else
+    {
+        /* Disable Master Receive Mode */
+        I2C_MASTER_DISABLE_RECEIVE_MODE_CONFIG();
+    }
     return (return_status);
 }
 /**
@@ -259,7 +271,7 @@ static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_ob
  */
 static inline Std_ReturnType select_i2c_master_mode(const i2c_t *const i2c_obj)
 {
-    Std_ReturnType return_status = E_NOT_OK;
+    Std_ReturnType return_status = E_OK;
     uint8 current_master_mode = ZERO_INIT;
     
     switch (i2c_obj->i2c_mode)
