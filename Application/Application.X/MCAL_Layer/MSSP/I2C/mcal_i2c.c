@@ -178,7 +178,18 @@ static inline Std_ReturnType configure_i2c_slave_mode(const i2c_t *const i2c_obj
         /* Error in setting the mode */
         return_status = E_NOT_OK; 
     }
-
+    
+    /* Enable or disable clock stretching */
+    if (_I2C_SLAVE_CLK_STRETCHING_ENABLE == i2c_obj->i2c_slave_general_call_enable)
+    {
+        /* Enable Clock Stretching */
+        I2C_SLAVE_ENABLE_CLK_STRETCH_CONFIG();
+    }
+    else
+    {
+        /* Disable Clock Stretching */
+        I2C_SLAVE_DISABLE_CLK_STRETCH_CONFIG();
+    }
     return (return_status);
 }
 /**
@@ -265,9 +276,9 @@ static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_ob
     return (return_status);
 }
 /**
- * 
- * @param i2c_obj
- * @return 
+ * @brief: Set the chosen i2c master mode
+ * @param i2c_obj the I2C module object
+ * @return E_OK if success otherwise E_NOT_OK
  */
 static inline Std_ReturnType select_i2c_master_mode(const i2c_t *const i2c_obj)
 {
