@@ -318,6 +318,7 @@ typedef enum
  * @i2c_mode: The I2C mode to select
  * @i2c_master_speed: The speed to set of the I2C module (MASTER ONLY)
  * @i2c_slave_general_call_enable: Enable or disable the slave general call interrupt
+ * @i2c_slave_clock_stretching_enable: Enable or disable clock stretching in slave mode
  * @i2c_master_receive_enable: Enable or disable the I2C master receive mode
  * @i2c_smbus_enable: Enable or disable the SMBUS specific inputs
  * @i2c_slew_rate_control: Enable or disable the slew rate control
@@ -334,10 +335,11 @@ typedef struct
     i2c_mode_t i2c_mode;
     i2c_master_speed_t i2c_master_speed;
     uint8 i2c_slave_general_call_enable : 1;
+    uint8 i2c_slave_clock_stretching_enable : 1;
     uint8 i2c_master_receive_enable : 1;
     uint8 i2c_smbus_enable : 1;
     uint8 i2c_slew_rate_control : 1;
-    uint8 RESERVED : 4;
+    uint8 RESERVED : 3;
 } i2c_t;
 /*----------------------------Function Prototypes-----------------------------*/
 /**
