@@ -46,6 +46,8 @@
 /*----------BF Bit------------*/
 #define _I2C_RECEIVE_BUFFER_FULL                             1 /* Receive complete, SSPBUF is full */
 #define _I2C_RECEIVE_BUFFER_EMPTY                            0 /* Receive not complete, SSPBUF is empty */
+#define _I2C_TRANSMIT_BUFFER_FULL                            1 /* Transmit in progress, SSPBUF is full */
+#define _I2C_TRANSMIT_BUFFER_EMPTY                           0 /* Transmit compelete, SSPBUF is empty */
 /*==================SSPCON1 REG================*/
 /*----------WCOL Bit----------*/
 /*---Master---*/
@@ -275,7 +277,7 @@
  * Initiates Start condition on SDA and SCL pins.
  * Automatically cleared by hardware. 
  */
-#define I2C_MASTER_SEND_START_CONFIG()                       (SSPCON2bits.PEN = _I2C_MASTER_SEND_START_COND)
+#define I2C_MASTER_SEND_START_CONFIG()                       (SSPCON2bits.SEN = _I2C_MASTER_SEND_START_COND)
 /*---Slave---*/
 /**
  * Clock stretching is enabled for both slave transmit and slave receive (stretch enabled)
@@ -348,5 +350,13 @@ typedef struct
  * @return E_OK if success otherwise E_NOT_OK
  */
 Std_ReturnType i2c_init(const i2c_t *const i2c_obj);
+/**
+ * @brief: Send data using master transmitter to a 7-bit slave address
+ * @param i2c_obj the I2C module object
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 slave_addr, 
+                                        const uint8 data);
 #endif	/* MCAL_I2C_H */
 
