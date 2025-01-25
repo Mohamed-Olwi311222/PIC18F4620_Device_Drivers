@@ -3,10 +3,10 @@
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
 #endif
-/* SCK (Serial Clock) pin */
-static pin_config_t SCK_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
-/* SDI (Serial Data) pin */
-static pin_config_t SDI_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN4};
+/* SCL (Serial clock) pin */
+static pin_config_t SCL_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
+/* SDA (Serial Data) pin */
+static pin_config_t SDA_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN4};
 /* The first 7 bits of the Slave address*/
 static uint8 slave_low_byte_addr = ZERO_INIT;
 /* The 2 MSBs of the 10-bit Slave Address */
@@ -68,26 +68,26 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
 }
 /*---------------Static Helper functions definitions----------------------------*/
 /**
- * @brief: Configure the SCK pin and SDI pin to be both inputs
+ * @brief: Configure the SDA pin and SCL pin to be both inputs
  * @return E_OK if success otherwise E_NOT_OK
  */
 static inline Std_ReturnType configure_i2c_pins(void)
 {
     Std_ReturnType return_status = E_OK;
 
-    /* Configure the SCK Pin to be input */
-    SCK_pin.direction = GPIO_DIRECTION_INPUT;
-    if (gpio_pin_direction_initialize(&SCK_pin) == E_NOT_OK)
+    /* Configure the SCL Pin to be input */
+    SCL_pin.direction = GPIO_DIRECTION_INPUT;
+    if (gpio_pin_direction_initialize(&SCL_pin) == E_NOT_OK)
     {
-        /* Error in configuring the SCK pin */
+        /* Error in configuring the SCL pin */
         return_status = E_NOT_OK;
     }
     
-    /* Configure the SDI Pin to be input */
-    SDI_pin.direction = GPIO_DIRECTION_INPUT;
-    if (gpio_pin_direction_initialize(&SDI_pin) == E_NOT_OK)
+    /* Configure the SDA Pin to be input */
+    SDA_pin.direction = GPIO_DIRECTION_INPUT;
+    if (gpio_pin_direction_initialize(&SDA_pin) == E_NOT_OK)
     {
-        /* Error in configuring the SDI pin */
+        /* Error in configuring the SDA pin */
         return_status = E_NOT_OK;
     }
     return (return_status);
