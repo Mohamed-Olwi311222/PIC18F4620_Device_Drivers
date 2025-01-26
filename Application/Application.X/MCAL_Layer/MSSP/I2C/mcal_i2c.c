@@ -310,6 +310,7 @@ static inline Std_ReturnType i2c_receive_data(uint8 *const data,
 {
     Std_ReturnType return_status = E_OK;
     
+    /* Enable receive mode (will be cleared by hardware)*/
     I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG();
     /* Wait for reception */
     poll_i2c_interrupt_flag();
