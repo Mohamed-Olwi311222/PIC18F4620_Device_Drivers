@@ -25,6 +25,18 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType select_i2c_master_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType i2c_master_set_speed(const i2c_t *const i2c_obj);
+static inline Std_ReturnType i2c_master_send_start_cond(void);
+static inline Std_ReturnType i2c_master_send_stop_cond(void);
+static inline Std_ReturnType i2c_send_data(const uint8 data, 
+                                           uint8 *const slave_ack);
+static inline Std_ReturnType i2c_send_address(const uint8 slave_addr, 
+                                              const uint8 mode,
+                                              uint8 *const slave_ack);
+static inline void poll_i2c_interrupt_flag(void);
+static inline void clear_i2c_interrupt_flag(void);
+static inline uint8 i2c_interrupt_flag(void);
+static inline void poll_i2c_sen_bit(void);
+static inline void poll_i2c_pen_bit(void);
 /*----Interrupt helper functions----*/
 
 /*---------------Static Helper functions declerations End-----------------------*/
@@ -66,7 +78,222 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
     }
     return (return_status);
 }
+/**
+ * @brief: Send data using master transmitter to a 7-bit slave address
+ * @param i2c_obj the I2C module object
+ * @param slave_addr the address of the slave to send to it
+ * @param data the data to send to the slaved
+ * @param slave_ack the address to store the slave acknowledge
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 slave_addr, 
+                                        const uint8 data,
+                                        uint8 *const slave_ack)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj ||0x0000 == slave_addr)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        /* Send Start Condition */
+        if (i2c_master_send_start_cond() == E_OK)
+        {
+            /* Send slave address */
+            if (_I2C_SLAVE_ACK_NOT_RECEIVED == i2c_send_address(slave_addr, _I2C_SLAVE_WRITE_MODE, slave_ack))
+            {
+                /* Ack not received from the slave */
+                return_status = E_NOT_OK;
+            }
+            else
+            {
+                /* Send data if a slave acknowledge its address */
+                if (_I2C_SLAVE_ACK_NOT_RECEIVED == i2c_send_data(slave_addr, slave_ack))
+                {
+                    /* Ack not received from the slave */
+                    return_status = E_NOT_OK;
+                }
+            }
+            /* Send Stop Condition */
+            if (i2c_master_send_stop_cond() == E_NOT_OK)
+            {
+                /* failed to send stop condition */
+                return_status = E_NOT_OK;
+            }
+        }
+        else
+        {
+            /* failed to send start condition */
+            return_status = E_NOT_OK;
+        }
+    }
+    return (return_status);
+}
 /*---------------Static Helper functions definitions----------------------------*/
+/**
+ * @brief Read the status of the I2C interrupt flag
+ * @return the status of the I2C interrupt flag
+ */
+static inline uint8 i2c_interrupt_flag(void)
+{
+    return PIR1bits.SSPIF;
+}
+/**
+ * @brief Clear the I2C interrupt flag
+ */
+static inline void clear_i2c_interrupt_flag(void)
+{
+    PIR1bits.SSPIF = 0;
+}
+/**
+ * @brief poll the I2C interrupt flag to wait for the current operation to end
+ */
+static inline void poll_i2c_interrupt_flag(void)
+{
+    /* Wait for the transmission to complete */
+    while (!i2c_interrupt_flag());
+    /* Clear the interrupt flag for the next operation */
+    clear_i2c_interrupt_flag(); 
+}
+/**
+ * @brief poll the SEN bit to wait until the start condition is sent
+ */
+static inline void poll_i2c_sen_bit(void)
+{
+    /* Wait until the start condition is sent */
+    while (!(_I2C_MASTER_START_COND_IDLE == SSPCON2bits.SEN));
+    /* Clear Interrupt flag */
+    clear_i2c_interrupt_flag();
+}
+/**
+ * @brief poll the PEN bit to wait until the stop condition is sent
+ */
+static inline void poll_i2c_pen_bit(void)
+{
+    /* Wait Until the stop condition is sent */
+    while (!(_I2C_MASTER_STOP_COND_IDLE == SSPCON2bits.PEN)); 
+    /* Clear Interrupt flag */
+    clear_i2c_interrupt_flag();
+}
+/**
+ * @brief: Send the first byte data + R/W bit
+ * @param slave_addr the address of the slave to send
+ * @param mode the mode needed read or write
+ * @param slave_ack the address to store the slave acknowledge
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType i2c_send_address(const uint8 slave_addr, 
+                                              const uint8 mode,
+                                              uint8 *const slave_ack)
+{
+    Std_ReturnType return_status = E_OK;
+    uint8 first_byte = slave_addr;               /* First byte to transmit (addr + RW) */
+    
+    /* Shift the slave address for the R/W bit to be LSB */
+    first_byte = (uint8)((uint16)(first_byte << 1));
+    if (_I2C_SLAVE_WRITE_MODE == mode)
+    {
+        /* Clear the 0 bit in the address to indicate a write */
+        CLEAR_BIT(first_byte, 0);
+    }
+    else
+    {
+        /* Set the 0 bit in the address to indicate a read */
+        SET_BIT(first_byte, 0);
+    }
+    /* Send the slave address and the R/W bit */
+    SSPBUF = first_byte;
+    /* Wait until transmit stops */
+    poll_i2c_interrupt_flag();
+    
+    /* Check the slave ACK */
+    I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
+    if (_I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
+    {
+        /* ACK was received */
+        return_status = E_NOT_OK;
+    }
+    return (return_status);
+}
+/**
+ * @brief: Send data using I2C Module
+ * @param data the data to send
+ * @param slave_ack the address to store the slave acknowledge
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType i2c_send_data(const uint8 data, 
+                                           uint8 *const slave_ack)
+{
+    Std_ReturnType return_status = E_OK;
+
+    /* Send data to the slave */
+    SSPBUF = data;
+    /* Wait until transmit stops */
+    poll_i2c_interrupt_flag();
+    
+    /* Check the slave ACK */
+    I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
+    if (_I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
+    {
+        /* ACK was received */
+        return_status = E_NOT_OK;
+    }   
+    return (return_status);
+}
+/**
+ * @brief: Send the start condition in master mode
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType i2c_master_send_start_cond(void)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    /* Send start condition */
+    I2C_MASTER_SEND_START_CONFIG();
+    /* Wait until the start condition is sent */
+    poll_i2c_sen_bit();
+    
+    /* Check if the start condition is sent successfully */
+    if (_I2C_START_BIT_DETECTED == SSPSTATbits.S)
+    {
+        /* Start Condition is sent */
+        return_status = E_OK;
+    }
+    else
+    {
+        /* Start Condition is not sent */
+        return_status = E_NOT_OK;
+    }
+    return (return_status);
+}
+/**
+ * @brief: Send the stop condition in master mode
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType i2c_master_send_stop_cond(void)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    /* Send Stop Condition */
+    I2C_MASTER_SEND_STOP_COND_CONFIG();
+    poll_i2c_pen_bit();
+    
+    /* Check if the Stop condition is sent successfully */
+    if (_I2C_STOP_BIT_DETECTED == SSPSTATbits.P)
+    {
+        /* Stop Condition is sent */
+        return_status = E_OK;
+    }
+    else
+    {
+        /* Stop Condition is not sent */
+        return_status = E_NOT_OK;
+    }
+    return (return_status);
+}
 /**
  * @brief: Configure the SDA pin and SCL pin to be both inputs
  * @return E_OK if success otherwise E_NOT_OK
