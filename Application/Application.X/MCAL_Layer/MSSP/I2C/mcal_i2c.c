@@ -32,6 +32,8 @@ static inline Std_ReturnType i2c_send_data(const uint8 data,
 static inline Std_ReturnType i2c_send_address(const uint8 slave_addr, 
                                               const uint8 mode,
                                               uint8 *const slave_ack);
+static inline Std_ReturnType i2c_receive_data(uint8 *const data, 
+                                           uint8 *const expected_data);
 static inline void poll_i2c_interrupt_flag(void);
 static inline void clear_i2c_interrupt_flag(void);
 static inline uint8 i2c_interrupt_flag(void);
@@ -132,6 +134,60 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
     }
     return (return_status);
 }
+/**
+ * @brief: Receive data using master receiver of a 7-bit slave address
+ * @param i2c_obj the I2C module object
+ * @param slave_addr the address of the slave to receive from it
+ * @param data the address to store the data received
+ * @param expected_data the expected data to be received (NULL if none)
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 slave_addr, 
+                                        uint8 *const data,
+                                        uint8 *const expected_data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj ||0x0000 == slave_addr)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        /* Send Start Condition */
+        if (i2c_master_send_start_cond() == E_OK)
+        {
+            /* Send slave address */
+            if (_I2C_SLAVE_ACK_NOT_RECEIVED == i2c_send_address(slave_addr, _I2C_SLAVE_READ_MODE, NULL))
+            {
+                /* Ack not received from the slave */
+                return_status = E_NOT_OK;
+            }
+            else
+            {
+                /* Receive data if a slave acknowledge its address */
+                if (_I2C_MASTER_NACK_RECEIVED_DATA == i2c_receive_data(data, expected_data))
+                {
+                    /* Data isn't as expected */
+                    return_status = E_NOT_OK;
+                }
+            }
+            /* Send Stop Condition */
+            if (i2c_master_send_stop_cond() == E_NOT_OK)
+            {
+                /* failed to send stop condition */
+                return_status = E_NOT_OK;
+            }
+        }
+        else
+        {
+            /* failed to send start condition */
+            return_status = E_NOT_OK;
+        }
+    }
+    return (return_status); 
+}
 /*---------------Static Helper functions definitions----------------------------*/
 /**
  * @brief Read the status of the I2C interrupt flag
@@ -211,9 +267,9 @@ static inline Std_ReturnType i2c_send_address(const uint8 slave_addr,
     
     /* Check the slave ACK */
     I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
-    if (_I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
+    if (NULL != slave_ack && _I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
     {
-        /* ACK was received */
+        /* ACK was not received */
         return_status = E_NOT_OK;
     }
     return (return_status);
@@ -241,6 +297,37 @@ static inline Std_ReturnType i2c_send_data(const uint8 data,
         /* ACK was received */
         return_status = E_NOT_OK;
     }   
+    return (return_status);
+}
+/**
+ * @brief: Receive data using I2C Module
+ * @param data the address to store the received data
+ * @param expected_data the expected data to be received (NULL if none)
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType i2c_receive_data(uint8 *const data, 
+                                           uint8 *const expected_data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG();
+    /* Wait for reception */
+    poll_i2c_interrupt_flag();
+    /* Read the data received from the slave */
+    *data = SSPBUF;
+    if (NULL != expected_data && expected_data == data)
+    {
+        /* The expected data is received */
+        I2C_MASTER_RECEIVE_SET_ACK_CONFIG();
+    }
+    else if (NULL != expected_data && expected_data != data)
+    {
+        /* The expected data is not received */
+        I2C_MASTER_RECEIVE_SET_NACK_CONFIG();
+        return_status = E_NOT_OK;
+    }
+    /* Send the ACK/NACK bit */
+    I2C_MASTER_RECEIVE_SEND_ACK_NACK_CONFIG();
     return (return_status);
 }
 /**
@@ -487,18 +574,6 @@ static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_ob
     {
         /* Error in setting the Speed of the I2C */
         return_status = E_NOT_OK; 
-    }
-    
-    /* Enable or disable master receive */
-    if (_I2C_MASTER_RECEIVE_ENABLE == i2c_obj->i2c_master_receive_enable)
-    {
-        /* Enable Master Receive Mode */
-        I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG();
-    }
-    else
-    {
-        /* Disable Master Receive Mode */
-        I2C_MASTER_DISABLE_RECEIVE_MODE_CONFIG();
     }
     return (return_status);
 }
