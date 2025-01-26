@@ -188,6 +188,42 @@ Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj,
     }
     return (return_status); 
 }
+/**
+ * @brief: Send data using slave transmitter to a master
+ * @param i2c_obj the I2C module object
+ * @param data the data to send to the master
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {  
+        /* Wait for the address match */
+        poll_i2c_interrupt_flag();
+        
+        if (_I2C_SLAVE_WRITE_MODE == SSPSTATbits.R_W)
+        {  
+            /* Address is in write mode */
+            return_status = E_NOT_OK;
+        } 
+        else 
+        {                
+            /* Address is in read mode */
+            /* Send the data given */
+            SSPBUF = data;     
+            /* Wait until master reads the data */
+            poll_i2c_interrupt_flag();
+        }
+    }
+       return (return_status);
+}
 /*---------------Static Helper functions definitions----------------------------*/
 /**
  * @brief Read the status of the I2C interrupt flag
@@ -550,6 +586,8 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj)
     if (E_OK == return_status)
     {
         I2C_SET_OPERATION_MODE(slave_mode);
+        /* Load the address of the slave to the SSPADD */
+        SSPADD = slave_low_byte_addr;
     }
     return (return_status);
 }
