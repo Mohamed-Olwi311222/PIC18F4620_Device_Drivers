@@ -373,5 +373,13 @@ Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj,
                                         const uint8 slave_addr, 
                                         uint8 *const data,
                                         uint8 *expected_data);
+/**
+ * @brief: Send data using slave transmitter to a master
+ * @param i2c_obj the I2C module object
+ * @param data the data to send to the master
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 data);
 #endif	/* MCAL_I2C_H */
 
