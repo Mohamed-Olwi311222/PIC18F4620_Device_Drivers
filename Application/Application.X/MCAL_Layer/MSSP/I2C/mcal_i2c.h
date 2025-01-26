@@ -338,10 +338,9 @@ typedef struct
     i2c_master_speed_t i2c_master_speed;
     uint8 i2c_slave_general_call_enable : 1;
     uint8 i2c_slave_clock_stretching_enable : 1;
-    uint8 i2c_master_receive_enable : 1;
     uint8 i2c_smbus_enable : 1;
     uint8 i2c_slew_rate_control : 1;
-    uint8 RESERVED : 3;
+    uint8 RESERVED : 4;
 } i2c_t;
 /*----------------------------Function Prototypes-----------------------------*/
 /**
@@ -362,5 +361,17 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
                                         const uint8 slave_addr, 
                                         const uint8 data,
                                         uint8 *const slave_ack);
+/**
+ * @brief: Receive data using master receiver of a 7-bit slave address
+ * @param i2c_obj the I2C module object
+ * @param slave_addr the address of the slave to receive from it
+ * @param data the address to store the data received
+ * @param expected_data the expected data to be received (NULL if none)
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 slave_addr, 
+                                        uint8 *const data,
+                                        uint8 *expected_data);
 #endif	/* MCAL_I2C_H */
 
