@@ -337,10 +337,9 @@ typedef struct
     i2c_mode_t i2c_mode;
     i2c_master_speed_t i2c_master_speed;
     uint8 i2c_slave_general_call_enable : 1;
-    uint8 i2c_slave_clock_stretching_enable : 1;
     uint8 i2c_smbus_enable : 1;
     uint8 i2c_slew_rate_control : 1;
-    uint8 RESERVED : 4;
+    uint8 RESERVED : 5;
 } i2c_t;
 /*----------------------------Function Prototypes-----------------------------*/
 /**
