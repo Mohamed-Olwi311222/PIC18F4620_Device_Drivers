@@ -1,7 +1,9 @@
 #include "mcal_i2c.h"
 /*---------------Static Data types----------------------------------------------*/
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
-static INTERRUPT_HANDLER spi_interrupt_handler = NULL; /* A pointer to the callback function when an interrupt is raised */
+static INTERRUPT_HANDLER i2c_interrupt_handler = NULL;              /* A pointer to the callback function when an interrupt is raised */
+static INTERRUPT_HANDLER write_collision_interrupt_handler = NULL;  /* A pointer to the callback function when an interrupt is raised */
+static INTERRUPT_HANDLER read_overflow_interrupt_handler = NULL;    /* A pointer to the callback function when an interrupt is raised */
 #endif
 /* SCL (Serial clock) pin */
 static pin_config_t SCL_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
@@ -40,7 +42,13 @@ static inline uint8 i2c_interrupt_flag(void);
 static inline void poll_i2c_sen_bit(void);
 static inline void poll_i2c_pen_bit(void);
 /*----Interrupt helper functions----*/
-
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+static inline Std_ReturnType configure_i2c_interrupt(const i2c_t *const i2c_obj);
+static inline Std_ReturnType set_i2c_interrupt_handler(INTERRUPT_HANDLER i2c_interrupt);
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+static inline void configure_i2c_interrupt_priority(interrupt_priority_cfg i2c_interrupt_priority);
+#endif
+#endif 
 /*---------------Static Helper functions declerations End-----------------------*/
 /**
  * @brief: Initialize the I2C module
@@ -71,6 +79,10 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
             /* Error in configuring the i2c mode */
             return_status = E_NOT_OK;
         }
+        /* Configure interrupt and its priority */
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+        configure_i2c_interrupt(i2c_obj);
+#endif 
         /* Enable or disable SMBUS specific inputs */
         configure_i2c_smbus_specific_inputs(i2c_obj);
         /* Enable or disable Slew rate control */
@@ -80,6 +92,7 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
     }
     return (return_status);
 }
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_DISABLE
 /**
  * @brief: Send data using master transmitter to a 7-bit slave address
  * @param i2c_obj the I2C module object
@@ -249,7 +262,50 @@ Std_ReturnType i2c_slave_receive_data_7_bit_addr(const i2c_t *const i2c_obj, uin
     }
     return (return_status);
 }
+#else
+/**
+ * @brief: Send data using master transmitter to a 7-bit slave address
+ * @param i2c_obj the I2C module object
+ * @param slave_addr the address of the slave to send to it
+ * @param data the data to send to the slaved
+ * @param slave_ack the address to store the slave acknowledge
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 slave_addr, 
+                                        const uint8 data,
+                                        uint8 *const slave_ack);
+/**
+ * @brief: Receive data using master receiver of a 7-bit slave address
+ * @param i2c_obj the I2C module object
+ * @param slave_addr the address of the slave to receive from it
+ * @param data the address to store the data received
+ * @param expected_data the expected data to be received (NULL if none)
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 slave_addr, 
+                                        uint8 *const data,
+                                        uint8 *expected_data);
+/**
+ * @brief: Send data using slave transmitter to a master
+ * @param i2c_obj the I2C module object
+ * @param data the data to send to the master
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                        const uint8 data);
+/**
+ * @brief: Receive data using slave receiver from a master
+ * @param i2c_obj the I2C module object
+ * @param data the address to store the data received
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_slave_receive_data_7_bit_addr(const i2c_t *const i2c_obj, 
+                                                uint8 *const data);
+#endif
 /*---------------Static Helper functions definitions----------------------------*/
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_DISABLE
 /**
  * @brief Read the status of the I2C interrupt flag
  * @return the status of the I2C interrupt flag
@@ -441,6 +497,7 @@ static inline Std_ReturnType i2c_master_send_stop_cond(void)
     }
     return (return_status);
 }
+#endif
 /**
  * @brief: Configure the SDA pin and SCL pin to be both inputs
  * @return E_OK if success otherwise E_NOT_OK
@@ -702,6 +759,84 @@ static inline Std_ReturnType i2c_master_set_speed(const i2c_t *const i2c_obj)
     return (return_status);
 }
 /*---------------Interrupt Helper functions-------------------------------------*/
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
+/**
+ * @brief: Configure the I2C interrupts
+ * @param i2c_obj the I2C module object
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType configure_i2c_interrupt(const i2c_t *const i2c_obj)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Disable Interrupt before configuring */
+    I2C_INTERRUPT_DISABLE();
+    
+    /* Enable priority levels */
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+    INTERRUPT_PRIORITY_levels_ENABLE();
+    INTERRUPT_Global_interrupt_LOW_ENABLE();
+    INTERRUPT_Global_interrupt_HIGH_ENABLE();
+    /* Configure the I2C Module Interrupt priority */
+    configure_i2c_interrupt_priority(i2c_obj->i2c_interrupt_priority);
+#else
+    /* If the interrupt priority is disabled then enable the peripheral interrupt
+    and global interrupts */
+        INTERRUPT_Peripheral_interrupt_ENABLE();
+        INTERRUPT_Global_interrupt_ENABLE();
+#endif
+    /* Clear Interrupt flag */
+    I2C_INTERRUPT_FLAG_BIT_CLEAR();
+    
+    /* Configure the interrupt handler */
+    ret = set_i2c_interrupt_handler(i2c_obj->i2c_interrupt);
+    
+    /* Enable I2C interrupt */
+    I2C_INTERRUPT_ENABLE();
+    
+    return (ret);
+}
+/**
+ * @brief: Set the interrupt handler of the i2c module
+ * @param i2c_interrupt the interrupt handler to call when the interrupt flag is set
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+static inline Std_ReturnType set_i2c_interrupt_handler(INTERRUPT_HANDLER i2c_interrupt)
+{
+    Std_ReturnType ret = E_OK;
+    
+    /* Set the interrupt handler if it isn't null */
+    if (i2c_interrupt)
+    {
+        i2c_interrupt_handler = i2c_interrupt;
+    }
+    else
+    {
+        ret = E_NOT_OK;
+    }
+    return (ret); 
+}
 
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+/**
+ * @brief Configure the I2C Interrupt priority depending on the user input
+ * @param i2c_interrupt_priority the inputted interrupt priority from the user
+ */
+static inline void configure_i2c_interrupt_priority(interrupt_priority_cfg i2c_interrupt_priority)
+{
+    switch (i2c_interrupt_priority)
+    {
+        /* High Priority */
+        case INTERRUPT_HIGH_PRIORITY:
+            I2C_HIGH_PRIORITY();
+            break;
+        /* Low Priority */
+        case INTERRUPT_LOW_PRIORITY:
+            I2C_LOW_PRIORITY();
+            break;
+    }
+}
+#endif
+#endif
 
 /*---------------Static Helper functions definitions End------------------------*/
