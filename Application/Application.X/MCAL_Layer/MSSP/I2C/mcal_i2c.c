@@ -170,7 +170,7 @@ Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj,
             else
             {
                 /* Receive data if a slave acknowledge its address */
-                if (_I2C_MASTER_NACK_RECEIVED_DATA == i2c_receive_data(data, expected_data))
+                if (E_NOT_OK == i2c_receive_data(data, expected_data))
                 {
                     /* Data isn't as expected */
                     return_status = E_NOT_OK;
