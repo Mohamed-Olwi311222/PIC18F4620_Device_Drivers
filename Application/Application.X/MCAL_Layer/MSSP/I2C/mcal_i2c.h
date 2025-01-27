@@ -316,6 +316,10 @@ typedef enum
 } i2c_master_speed_t;
 /**
  * struct i2c_t - A Struct for I2C Mode of MSSP Module
+ * @i2c_interrupt: The interrupt handler to call when SSPIF is set
+ * @i2c_write_collision_interrupt: The interrupt handler to call when a write collision happens
+ * @i2c_receive_overflow_interrupt: The interrupt handler to call when a receive overflow happens
+ * @i2c_interrupt_priority: The interrupt priority of any interrupt of I2C
  * @i2c_slave_mode_addr: The slave address to set in slave mode
  * @i2c_mode: The I2C mode to select
  * @i2c_master_speed: The speed to set of the I2C module (MASTER ONLY)
@@ -329,6 +333,8 @@ typedef struct
 {
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
     INTERRUPT_HANDLER i2c_interrupt;
+    INTERRUPT_HANDLER i2c_write_collison_interrupt;
+    INTERRUPT_HANDLER i2c_receive_overflow_interrupt;
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
     interrupt_priority_cfg i2c_interrupt_priority;
 #endif
