@@ -239,6 +239,7 @@
 #define EUSART_RECEIVE_LOW_PRIORITY()                   (IPR1bits.RC1IP = 0)
 #endif
 #endif
+
 /*----------------SPI Interrupt--------------*/
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 /**
@@ -264,5 +265,32 @@
 #define SPI_LOW_PRIORITY()                              (IPR1bits.SSPIP = 0)
 #endif
 #endif
+
+/*----------------I2C Interrupt--------------*/
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+/**
+ * Clears the interrupt enable for the I2C Module
+ */
+#define I2C_INTERRUPT_DISABLE()                         (PIE1bits.SSPIE = 0)
+/**
+ * Sets the interrupt enable for the I2C Module
+ */
+#define I2C_INTERRUPT_ENABLE()                          (PIE1bits.SSPIE = 1)
+/**
+ * Clears the Interrupt flag for the I2C Module
+ */
+#define I2C_INTERRUPT_FLAG_BIT_CLEAR()                  (PIR1bits.SSPIF = 0)
+#if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
+/**
+ * I2C Module HIGH priority
+ */
+#define I2C_HIGH_PRIORITY()                             (IPR1bits.SSPIP = 1)
+/**
+ * I2C Module LOW priority
+ */
+#define I2C_LOW_PRIORITY()                              (IPR1bits.SSPIP = 0)
+#endif
+#endif
+
 #endif	/* MCAL_INTERNAL_INTERRUPT_H */
 
