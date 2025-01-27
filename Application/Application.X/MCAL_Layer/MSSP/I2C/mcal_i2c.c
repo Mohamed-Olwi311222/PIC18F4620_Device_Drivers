@@ -105,7 +105,8 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
         if (i2c_master_send_start_cond() == E_OK)
         {
             /* Send slave address */
-            if (_I2C_SLAVE_ACK_NOT_RECEIVED == i2c_send_address(slave_addr, _I2C_SLAVE_WRITE_MODE, slave_ack))
+            return_status = i2c_send_address(slave_addr, _I2C_SLAVE_WRITE_MODE, slave_ack);
+            if (_I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
             {
                 /* Ack not received from the slave */
                 return_status = E_NOT_OK;
@@ -113,7 +114,8 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
             else
             {
                 /* Send data if a slave acknowledge its address */
-                if (_I2C_SLAVE_ACK_NOT_RECEIVED == i2c_send_data(slave_addr, slave_ack))
+                return_status = i2c_send_data(data, slave_ack);
+                if (_I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
                 {
                     /* Ack not received from the slave */
                     return_status = E_NOT_OK;
@@ -158,8 +160,9 @@ Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj,
         /* Send Start Condition */
         if (i2c_master_send_start_cond() == E_OK)
         {
+            return_status = i2c_send_address(slave_addr, _I2C_SLAVE_READ_MODE, NULL);
             /* Send slave address */
-            if (_I2C_SLAVE_ACK_NOT_RECEIVED == i2c_send_address(slave_addr, _I2C_SLAVE_READ_MODE, NULL))
+            if (_I2C_SLAVE_ACK_NOT_RECEIVED == return_status)
             {
                 /* Ack not received from the slave */
                 return_status = E_NOT_OK;
@@ -208,21 +211,43 @@ Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
         /* Wait for the address match */
         poll_i2c_interrupt_flag();
         
-        if (_I2C_SLAVE_WRITE_MODE == SSPSTATbits.R_W)
+        if (_I2C_SLAVE_READ_MODE == SSPSTATbits.R_W)
         {  
-            /* Address is in write mode */
-            return_status = E_NOT_OK;
-        } 
-        else 
-        {                
             /* Address is in read mode */
             /* Send the data given */
             SSPBUF = data;     
             /* Wait until master reads the data */
             poll_i2c_interrupt_flag();
-        }
+        } 
     }
        return (return_status);
+}
+/**
+ * @brief: Receive data using slave receiver from a master
+ * @param i2c_obj the I2C module object
+ * @param data the address to store the data received
+ * @return E_OK if success otherwise E_NOT_OK
+ */
+Std_ReturnType i2c_slave_receive_data_7_bit_addr(const i2c_t *const i2c_obj, uint8 *const data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj || NULL == data)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        poll_i2c_interrupt_flag();
+        I2C_SLAVE_HOLD_CLK_CONFIG();
+        if (_I2C_SLAVE_WRITE_MODE == SSPSTATbits.RW)
+        {            
+            /* Read the data */
+            *data = SSPBUF;
+        }
+        I2C_SLAVE_RELEASE_CLK_CONFIG();
+    }
+    return (return_status);
 }
 /*---------------Static Helper functions definitions----------------------------*/
 /**
@@ -302,11 +327,10 @@ static inline Std_ReturnType i2c_send_address(const uint8 slave_addr,
     poll_i2c_interrupt_flag();
     
     /* Check the slave ACK */
-    I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
-    if (NULL != slave_ack && _I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
+    while (_I2C_SLAVE_ACK_NOT_RECEIVED == SSPCON2bits.ACKSTAT);
+    if (NULL != slave_ack )
     {
-        /* ACK was not received */
-        return_status = E_NOT_OK;
+        I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
     }
     return (return_status);
 }
@@ -326,13 +350,12 @@ static inline Std_ReturnType i2c_send_data(const uint8 data,
     /* Wait until transmit stops */
     poll_i2c_interrupt_flag();
     
+    while (_I2C_SLAVE_ACK_NOT_RECEIVED == SSPCON2bits.ACKSTAT);
     /* Check the slave ACK */
-    I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
-    if (_I2C_SLAVE_ACK_NOT_RECEIVED == *slave_ack)
+    if (NULL != slave_ack)
     {
-        /* ACK was received */
-        return_status = E_NOT_OK;
-    }   
+        I2C_MASTER_TRANSMIT_READ_ACK_STATUS_CONFIG(slave_ack); 
+    }
     return (return_status);
 }
 /**
@@ -530,17 +553,9 @@ static inline Std_ReturnType configure_i2c_slave_mode(const i2c_t *const i2c_obj
         return_status = E_NOT_OK; 
     }
     
-    /* Enable or disable clock stretching */
-    if (_I2C_SLAVE_CLK_STRETCHING_ENABLE == i2c_obj->i2c_slave_general_call_enable)
-    {
-        /* Enable Clock Stretching */
-        I2C_SLAVE_ENABLE_CLK_STRETCH_CONFIG();
-    }
-    else
-    {
-        /* Disable Clock Stretching */
-        I2C_SLAVE_DISABLE_CLK_STRETCH_CONFIG();
-    }
+    /* Enable Clock Stretching */
+    I2C_SLAVE_ENABLE_CLK_STRETCH_CONFIG();
+    
     return (return_status);
 }
 /**
@@ -586,9 +601,10 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj)
     if (E_OK == return_status)
     {
         I2C_SET_OPERATION_MODE(slave_mode);
-        /* Load the address of the slave to the SSPADD */
-        SSPADD = slave_low_byte_addr;
+
     }
+    /* Load the address of the slave to the SSPADD */
+    SSPADD = slave_low_byte_addr;
     return (return_status);
 }
 /*---------------MASTER Helper functions----------------------------------------*/
