@@ -27,9 +27,10 @@
 #define SPI_SLAVE_RECEIVE_MODE                          0 /* A macro to chose the mode of the SPI Slave Receive ISR */
 #define _I2C_MASTER_START_COND_INTERRUPT                0 /* An indicator that the start condition happened */
 #define _I2C_MASTER_STOP_COND_INTERRUPT                 1 /* An indicator that the stop condition happened */
-#define _I2C_MASTER_TRANSMIT_INTERRUPT                  2 /* An indicator that the transmit happened */
-#define _I2C_MASTER_RECEIVE_INTERRUPT                   3 /* An indicator that the receive happened */
-#define _I2C_MASTER_OPERATION_INTERRUPT                 4 /* An indicator that the current operation is done */
+#define _I2C_MASTER_ADDRESS_SENT_INTERRUPT              2 /* An indicator that the address has been sent */
+#define _I2C_MASTER_TRANSMIT_INTERRUPT                  3 /* An indicator that the transmit happened */
+#define _I2C_MASTER_RECEIVE_INTERRUPT                   4 /* An indicator that the receive happened */
+#define _I2C_MASTER_OPERATION_INTERRUPT                 5 /* An indicator that the current operation is done */
 /*----------------------------Macros Functions Declarations-------------------*/
 
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
