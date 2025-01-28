@@ -2,8 +2,11 @@
 /*---------------Static Data types----------------------------------------------*/
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER i2c_interrupt_handler = NULL;              /* A pointer to the callback function when an interrupt is raised */
-static INTERRUPT_HANDLER write_collision_interrupt_handler = NULL;  /* A pointer to the callback function when an interrupt is raised */
-static INTERRUPT_HANDLER read_overflow_interrupt_handler = NULL;    /* A pointer to the callback function when an interrupt is raised */
+static uint8 data_to_transmit = ZERO_INIT;
+static uint8 *slave_ack_nack = NULL;
+static uint8 *data_to_receive = NULL;
+static uint8 *expected_data_to_receive = NULL;
+static uint8 i2c_current_mode = ZERO_INIT;
 #endif
 /* SCL (Serial clock) pin */
 static pin_config_t SCL_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
@@ -45,6 +48,9 @@ static inline void poll_i2c_pen_bit(void);
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
 static inline Std_ReturnType configure_i2c_interrupt(const i2c_t *const i2c_obj);
 static inline Std_ReturnType set_i2c_interrupt_handler(INTERRUPT_HANDLER i2c_interrupt);
+static inline void i2c_master_send_address(void);
+static inline void i2c_master_send_data(void);
+static inline void i2c_master_read_SSPBUF(void);
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
 static inline void configure_i2c_interrupt_priority(interrupt_priority_cfg i2c_interrupt_priority);
 #endif
@@ -274,7 +280,30 @@ Std_ReturnType i2c_slave_receive_data_7_bit_addr(const i2c_t *const i2c_obj, uin
 Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
                                         const uint8 slave_addr, 
                                         const uint8 data,
-                                        uint8 *const slave_ack);
+                                        uint8 *const slave_ack)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        /* Set the data to transmit */
+        data_to_transmit = data;
+        /* Set the address to send the data to */
+        slave_low_byte_addr = (uint8)(slave_addr << 1);
+        CLEAR_BIT(slave_low_byte_addr, 0);
+        /* Set the slave_ack_nack pointer to the current address given */
+        slave_ack_nack = slave_ack;
+        /* Set the i2c_current_mode to be used in the interrupts */
+        i2c_current_mode = _I2C_MASTER_TRANSMIT_INTERRUPT;
+        /* Send start condition */
+        I2C_MASTER_SEND_START_CONFIG();
+    }
+    return (return_status);
+}
 /**
  * @brief: Receive data using master receiver of a 7-bit slave address
  * @param i2c_obj the I2C module object
@@ -496,6 +525,115 @@ static inline Std_ReturnType i2c_master_send_stop_cond(void)
         return_status = E_NOT_OK;
     }
     return (return_status);
+}
+#else
+/**
+ * @brief: Send address when start condition happens in I2C Master Transmit mode
+ */
+static inline void i2c_master_send_address(void)
+{
+    SSPBUF = slave_low_byte_addr;
+}
+/**
+ * @brief: Send data when start condition happens in I2C Master Transmit mode
+ */
+static inline void i2c_master_send_data(void)
+{
+    SSPBUF = data_to_transmit;
+}
+/*
+ * @brief: Read the SSPBUF in I2C Master Receive mode
+ */
+static inline void i2c_master_read_SSPBUF(void)
+{
+    if (NULL != data_to_receive)
+    {
+        *data_to_receive = SSPBUF;
+    }
+}
+/*
+ * @brief: Send ACK in I2C Master Receive mode
+ */
+static inline void i2c_send_ack(void)
+{
+    if (NULL != expected_data_to_receive && NULL != data_to_receive)
+    {
+        if (*expected_data_to_receive == *data_to_receive)
+        {
+            I2C_MASTER_RECEIVE_SET_ACK_CONFIG();
+        }
+        else
+        {
+            I2C_MASTER_RECEIVE_SET_NACK_CONFIG();
+        }
+    }
+    I2C_MASTER_RECEIVE_SEND_ACK_NACK_CONFIG();
+}
+/**
+ * @brief the interrupt service routine of I2C Module Master Mode
+ * @param interrupt_type the interrupt type that has happened
+ */
+void I2C_MASTER_ISR(const uint8 interrupt_type)
+{
+    /* Clear the I2C interrupt flag */
+    I2C_INTERRUPT_FLAG_BIT_CLEAR();
+
+    switch (interrupt_type)
+    {
+        /* The interrupt source is the start cond */
+        case _I2C_MASTER_START_COND_INTERRUPT:
+            /* Send slave address */
+            i2c_master_send_address();
+            /* Change the incomming source to the current I2C Master Mode (transmitter or receiver) */
+            I2C_MASTER_INTERRUPT_TYPE = i2c_current_mode;
+            break;
+
+        /* The interrupt which comes after the address sent (Master transmitter) */
+        case _I2C_MASTER_TRANSMIT_INTERRUPT:
+            /* Send the data */
+            i2c_master_send_data();
+            /* Change the incomming source to the ending operation interrupt */
+            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_OPERATION_INTERRUPT;
+            break;
+            
+        /* The interrupt which comes after the data interrupt in master mode */
+        case _I2C_MASTER_OPERATION_INTERRUPT:
+            
+            /*If I2C master receive mode is on, read the data */
+            if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
+            {
+                i2c_master_read_SSPBUF();
+            }
+            /* Send Stop Condition */
+            I2C_MASTER_SEND_STOP_COND_CONFIG();
+            /* Change the incomming source to the Stop condition interrupt */
+            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_STOP_COND_INTERRUPT;
+            break;
+            
+        case _I2C_MASTER_STOP_COND_INTERRUPT:
+            /* If I2C master receive mode is on, ack data */
+            if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
+            {
+                i2c_send_ack();
+            }
+            /* Change the next source to be the start condition to indicate a new comms */
+            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_START_COND_INTERRUPT;
+            break;
+    }
+
+    /* Call the interrupt handler if set */
+    if (i2c_interrupt_handler)
+    {
+        i2c_interrupt_handler();
+    }
+}
+
+/**
+ * @brief the interrupt service routine of I2C Module Slave Mode
+ */
+void I2C_SLAVE_ISR(void)
+{
+    
 }
 #endif
 /**
