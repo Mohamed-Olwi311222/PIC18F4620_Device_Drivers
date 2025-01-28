@@ -21,35 +21,10 @@ static volatile uint8 RB7_Flag = RBx_FLAG_TRUE;          /*A flag to indicates t
 void __interrupt() Interrupt_Manager_High(void)
 {
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
-    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
-            (_I2C_MASTER_START_COND_INTERRUPT == I2C_MASTER_INTERRUPT_TYPE))
-    {
-        /* Call the ISR of the I2C Master Mode Start Cond interrupt */
-        I2C_MASTER_ISR(_I2C_MASTER_START_COND_INTERRUPT);
-    }
-    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
-            (_I2C_MASTER_STOP_COND_INTERRUPT == I2C_MASTER_INTERRUPT_TYPE))
-    {
-        /* Call the ISR of the I2C Master Mode Stop Cond interrupt */
-        I2C_MASTER_ISR(_I2C_MASTER_STOP_COND_INTERRUPT);
-    }
-    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
-            (_I2C_MASTER_TRANSMIT_INTERRUPT == I2C_MASTER_INTERRUPT_TYPE))
-    {
-        /* Call the ISR of the I2C Master Transmit Mode interrupt */
-        I2C_MASTER_ISR(_I2C_MASTER_TRANSMIT_INTERRUPT);
-    }
-    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
-            (_I2C_MASTER_RECEIVE_INTERRUPT == I2C_MASTER_INTERRUPT_TYPE))
-    {
-        /* Call the ISR of the I2C Master Receive Mode interrupt */
-        I2C_MASTER_ISR(_I2C_MASTER_RECEIVE_INTERRUPT);
-    }
-    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
-            (_I2C_MASTER_OPERATION_INTERRUPT == I2C_MASTER_INTERRUPT_TYPE))
+    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF))
     {
         /* Call the ISR of the I2C Completed operation interrupt */
-        I2C_MASTER_ISR(_I2C_MASTER_OPERATION_INTERRUPT);
+        I2C_MASTER_ISR(I2C_MASTER_INTERRUPT_TYPE);
     }
     
 #endif
