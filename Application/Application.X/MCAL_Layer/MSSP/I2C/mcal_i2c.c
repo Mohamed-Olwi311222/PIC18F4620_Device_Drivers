@@ -6,7 +6,7 @@ static uint8 data_to_transmit = ZERO_INIT;
 static uint8 *slave_ack_nack = NULL;
 static uint8 *data_to_receive = NULL;
 static uint8 *expected_data_to_receive = NULL;
-static uint8 i2c_current_mode = ZERO_INIT;
+static uint8 i2c_current_mode = _I2C_MASTER_START_COND_INTERRUPT;
 #endif
 /* SCL (Serial clock) pin */
 static pin_config_t SCL_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
@@ -315,7 +315,33 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
 Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj, 
                                         const uint8 slave_addr, 
                                         uint8 *const data,
-                                        uint8 *expected_data);
+                                        uint8 *expected_data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        /* Set the address to send the data to */
+        slave_low_byte_addr = (uint8)(slave_addr << 1);
+        SET_BIT(slave_low_byte_addr, 0);
+        /* Set the pointer data_to_recieve to the address of @data to change it directly */
+        data_to_receive = data;
+        /* Set the pointer expected_data_to_receive to the address of @expected_data to change it directly */
+        expected_data_to_receive = expected_data;
+        /* Send start condition */
+        if (_I2C_MASTER_START_COND_INTERRUPT == i2c_current_mode)
+        {
+            /* Set the i2c_current_mode to be used in the interrupts */
+            i2c_current_mode = _I2C_MASTER_RECEIVE_INTERRUPT;
+            I2C_MASTER_SEND_START_CONFIG();
+        }
+    }
+    return (return_status);
+}
 /**
  * @brief: Send data using slave transmitter to a master
  * @param i2c_obj the I2C module object
@@ -556,19 +582,31 @@ static inline void i2c_master_read_SSPBUF(void)
  */
 static inline void i2c_send_ack(void)
 {
-    if (NULL != expected_data_to_receive && NULL != data_to_receive)
+    /* Check if data pointers are valid */
+    if (expected_data_to_receive && data_to_receive)
     {
+        /* Compare expected data with received data */
         if (*expected_data_to_receive == *data_to_receive)
         {
-            I2C_MASTER_RECEIVE_SET_ACK_CONFIG();
+            /* Data as expected, send NACK to end the communication */
+            I2C_MASTER_RECEIVE_SET_NACK_CONFIG();
         }
         else
         {
-            I2C_MASTER_RECEIVE_SET_NACK_CONFIG();
+            /* Data not as expected, send ACK to request another byte */
+            I2C_MASTER_RECEIVE_SET_ACK_CONFIG();
         }
     }
+    else
+    {
+        /* Default behavior: NACK to end communication */
+        I2C_MASTER_RECEIVE_SET_NACK_CONFIG();
+    }
+
+    /* Send the ACK/NACK bit */
     I2C_MASTER_RECEIVE_SEND_ACK_NACK_CONFIG();
 }
+
 /**
  * @brief the interrupt service routine of I2C Module Master Mode
  * @param interrupt_type the interrupt type that has happened
@@ -584,39 +622,51 @@ void I2C_MASTER_ISR(const uint8 interrupt_type)
         case _I2C_MASTER_START_COND_INTERRUPT:
             /* Send slave address */
             i2c_master_send_address();
-            /* Change the incomming source to the current I2C Master Mode (transmitter or receiver) */
-            I2C_MASTER_INTERRUPT_TYPE = i2c_current_mode;
+            /* Change the next source to the address sent interrupt */
+            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_ADDRESS_SENT_INTERRUPT;
             break;
-
-        /* The interrupt which comes after the address sent (Master transmitter) */
-        case _I2C_MASTER_TRANSMIT_INTERRUPT:
-            /* Send the data */
-            i2c_master_send_data();
-            /* Change the incomming source to the ending operation interrupt */
+            
+        /* The interrupt source is the address sent */    
+        case _I2C_MASTER_ADDRESS_SENT_INTERRUPT:
+            /*If I2C master transmit mode is on, transmit the data */
+            if (i2c_current_mode == _I2C_MASTER_TRANSMIT_INTERRUPT)
+            {
+                /* Send the data */
+                i2c_master_send_data();
+            }
+            else if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
+            {
+                /* Enable Receive Mode */
+                I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG();
+            }
+            /* Change the next source to the ending operation interrupt */
             I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_OPERATION_INTERRUPT;
             break;
-            
-        /* The interrupt which comes after the data interrupt in master mode */
+
+        /* The interrupt source is the ending operation interrupt */    
         case _I2C_MASTER_OPERATION_INTERRUPT:
-            
-            /*If I2C master receive mode is on, read the data */
             if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
             {
+                /* Wait until SSPBUF is full */
+                while (_I2C_RECEIVE_BUFFER_EMPTY == SSPSTATbits.BF);
+                /* Read the data */
                 i2c_master_read_SSPBUF();
+                /* If I2C master receive mode is on, ack data */
+                i2c_send_ack();
+                /* Wait until it is sent */
+                while (_I2C_MASTER_ACK_SEQUENCE_ENABLE == SSPCON2bits.ACKEN);
             }
             /* Send Stop Condition */
             I2C_MASTER_SEND_STOP_COND_CONFIG();
-            /* Change the incomming source to the Stop condition interrupt */
+            /* Wait for Stop condition to complete */
+            while (!(_I2C_MASTER_STOP_COND_IDLE == SSPCON2bits.PEN));
+            /* Change the next source to the Stop condition interrupt */
             I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_STOP_COND_INTERRUPT;
             break;
             
         case _I2C_MASTER_STOP_COND_INTERRUPT:
-            /* If I2C master receive mode is on, ack data */
-            if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
-            {
-                i2c_send_ack();
-            }
             /* Change the next source to be the start condition to indicate a new comms */
+            i2c_current_mode = _I2C_MASTER_START_COND_INTERRUPT;
             I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_START_COND_INTERRUPT;
             break;
     }
