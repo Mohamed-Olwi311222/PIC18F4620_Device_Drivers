@@ -115,7 +115,8 @@ void SPI_SLAVE_ISR(uint8 mode);
 void I2C_MASTER_ISR(uint8 interrupt_type);
 /**
  * @brief the interrupt service routine of I2C Module Slave Mode
+ * @param interrupt_type the interrupt type that has happened
  */
-void I2C_SLAVE_ISR(void);
+void I2C_SLAVE_ISR(uint8 interrupt_type);
 #endif	/* MCAL_INTERRUPT_MANAGER_H */
 
