@@ -6,7 +6,7 @@ static uint8 data_to_transmit = ZERO_INIT;
 static uint8 *slave_ack_nack = NULL;
 static uint8 *data_to_receive = NULL;
 static uint8 *expected_data_to_receive = NULL;
-static uint8 i2c_current_mode = _I2C_MASTER_START_COND_INTERRUPT;
+static uint8 i2c_current_mode = _I2C_START_COND_INTERRUPT;
 #endif
 /* SCL (Serial clock) pin */
 static pin_config_t SCL_pin = {.port = PORTC_INDEX, .pin = GPIO_PIN3};
@@ -30,6 +30,7 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType configure_i2c_master_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType select_i2c_master_mode(const i2c_t *const i2c_obj);
 static inline Std_ReturnType i2c_master_set_speed(const i2c_t *const i2c_obj);
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_DISABLE
 static inline Std_ReturnType i2c_master_send_start_cond(void);
 static inline Std_ReturnType i2c_master_send_stop_cond(void);
 static inline Std_ReturnType i2c_send_data(const uint8 data, 
@@ -44,13 +45,14 @@ static inline void clear_i2c_interrupt_flag(void);
 static inline uint8 i2c_interrupt_flag(void);
 static inline void poll_i2c_sen_bit(void);
 static inline void poll_i2c_pen_bit(void);
+#endif
 /*----Interrupt helper functions----*/
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_ENABLE
 static inline Std_ReturnType configure_i2c_interrupt(const i2c_t *const i2c_obj);
 static inline Std_ReturnType set_i2c_interrupt_handler(INTERRUPT_HANDLER i2c_interrupt);
 static inline void i2c_master_send_address(void);
-static inline void i2c_master_send_data(void);
-static inline void i2c_master_read_SSPBUF(void);
+static inline void i2c_send_data(void);
+static inline void i2c_read_SSPBUF(void);
 #if INTERRUPT_PRIORITY_LEVELS_ENABLE == INTERRUPT_FEATURE_ENABLE
 static inline void configure_i2c_interrupt_priority(interrupt_priority_cfg i2c_interrupt_priority);
 #endif
@@ -298,7 +300,7 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
         /* Set the slave_ack_nack pointer to the current address given */
         slave_ack_nack = slave_ack;
         /* Set the i2c_current_mode to be used in the interrupts */
-        i2c_current_mode = _I2C_MASTER_TRANSMIT_INTERRUPT;
+        i2c_current_mode = _I2C_TRANSMIT_INTERRUPT;
         /* Send start condition */
         I2C_MASTER_SEND_START_CONFIG();
     }
@@ -333,10 +335,10 @@ Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj,
         /* Set the pointer expected_data_to_receive to the address of @expected_data to change it directly */
         expected_data_to_receive = expected_data;
         /* Send start condition */
-        if (_I2C_MASTER_START_COND_INTERRUPT == i2c_current_mode)
+        if (_I2C_START_COND_INTERRUPT == i2c_current_mode)
         {
             /* Set the i2c_current_mode to be used in the interrupts */
-            i2c_current_mode = _I2C_MASTER_RECEIVE_INTERRUPT;
+            i2c_current_mode = _I2C_RECEIVE_INTERRUPT;
             I2C_MASTER_SEND_START_CONFIG();
         }
     }
@@ -349,7 +351,33 @@ Std_ReturnType i2c_master_receive_data_7_bit_addr(const i2c_t *const i2c_obj,
  * @return E_OK if success otherwise E_NOT_OK
  */
 Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj, 
-                                        const uint8 data);
+                                        const uint8 data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        /* Set the data to transmit */
+        data_to_transmit = data;
+        if (I2C_SLAVE_MODE_7_BIT_ADDR_START_STOP_INTERRUPTS_ON == i2c_obj->i2c_mode 
+                && _I2C_START_COND_INTERRUPT == i2c_current_mode)
+        {
+            /* Set the i2c_current_mode to be used in the interrupts */
+            i2c_current_mode = _I2C_TRANSMIT_INTERRUPT;
+        }
+        else if ((I2C_SLAVE_MODE_7_BIT_ADDR_START_STOP_INTERRUPTS_OFF == i2c_obj->i2c_mode)
+                &&(_I2C_STOP_COND_INTERRUPT == i2c_current_mode || _I2C_START_COND_INTERRUPT == i2c_current_mode))
+        {
+            /* Set the i2c_current_mode to be used in the interrupts */
+            i2c_current_mode = _I2C_ADDRESS_SENT_INTERRUPT;
+        }
+    }
+    return (return_status);
+}
 /**
  * @brief: Receive data using slave receiver from a master
  * @param i2c_obj the I2C module object
@@ -357,7 +385,27 @@ Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
  * @return E_OK if success otherwise E_NOT_OK
  */
 Std_ReturnType i2c_slave_receive_data_7_bit_addr(const i2c_t *const i2c_obj, 
-                                                uint8 *const data);
+                                                uint8 *const data)
+{
+    Std_ReturnType return_status = E_OK;
+    
+    if (NULL == i2c_obj)
+    {
+        return_status = E_NOT_OK;
+    }
+    else
+    {
+        /* Set the pointer data_to_recieve to the address of @data to change it directly */
+        data_to_receive = data;
+        /* Send start condition */
+        if (_I2C_START_COND_INTERRUPT == i2c_current_mode)
+        {
+            /* Set the i2c_current_mode to be used in the interrupts */
+            i2c_current_mode = _I2C_RECEIVE_INTERRUPT;
+        }
+    }
+    return (return_status);
+}
 #endif
 /*---------------Static Helper functions definitions----------------------------*/
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_DISABLE
@@ -563,14 +611,14 @@ static inline void i2c_master_send_address(void)
 /**
  * @brief: Send data when start condition happens in I2C Master Transmit mode
  */
-static inline void i2c_master_send_data(void)
+static inline void i2c_send_data(void)
 {
     SSPBUF = data_to_transmit;
 }
 /*
  * @brief: Read the SSPBUF in I2C Master Receive mode
  */
-static inline void i2c_master_read_SSPBUF(void)
+static inline void i2c_read_SSPBUF(void)
 {
     if (NULL != data_to_receive)
     {
@@ -619,38 +667,38 @@ void I2C_MASTER_ISR(const uint8 interrupt_type)
     switch (interrupt_type)
     {
         /* The interrupt source is the start cond */
-        case _I2C_MASTER_START_COND_INTERRUPT:
+        case _I2C_START_COND_INTERRUPT:
             /* Send slave address */
             i2c_master_send_address();
             /* Change the next source to the address sent interrupt */
-            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_ADDRESS_SENT_INTERRUPT;
+            I2C_INTERRUPT_TYPE = _I2C_ADDRESS_SENT_INTERRUPT;
             break;
             
         /* The interrupt source is the address sent */    
-        case _I2C_MASTER_ADDRESS_SENT_INTERRUPT:
+        case _I2C_ADDRESS_SENT_INTERRUPT:
             /*If I2C master transmit mode is on, transmit the data */
-            if (i2c_current_mode == _I2C_MASTER_TRANSMIT_INTERRUPT)
+            if (i2c_current_mode == _I2C_TRANSMIT_INTERRUPT)
             {
                 /* Send the data */
-                i2c_master_send_data();
+                i2c_send_data();
             }
-            else if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
+            else if (i2c_current_mode == _I2C_RECEIVE_INTERRUPT)
             {
                 /* Enable Receive Mode */
                 I2C_MASTER_ENABLE_RECEIVE_MODE_CONFIG();
             }
             /* Change the next source to the ending operation interrupt */
-            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_OPERATION_INTERRUPT;
+            I2C_INTERRUPT_TYPE = _I2C_OPERATION_INTERRUPT;
             break;
 
         /* The interrupt source is the ending operation interrupt */    
-        case _I2C_MASTER_OPERATION_INTERRUPT:
-            if (i2c_current_mode == _I2C_MASTER_RECEIVE_INTERRUPT)
+        case _I2C_OPERATION_INTERRUPT:
+            if (i2c_current_mode == _I2C_RECEIVE_INTERRUPT)
             {
                 /* Wait until SSPBUF is full */
                 while (_I2C_RECEIVE_BUFFER_EMPTY == SSPSTATbits.BF);
                 /* Read the data */
-                i2c_master_read_SSPBUF();
+                i2c_read_SSPBUF();
                 /* If I2C master receive mode is on, ack data */
                 i2c_send_ack();
                 /* Wait until it is sent */
@@ -661,13 +709,13 @@ void I2C_MASTER_ISR(const uint8 interrupt_type)
             /* Wait for Stop condition to complete */
             while (!(_I2C_MASTER_STOP_COND_IDLE == SSPCON2bits.PEN));
             /* Change the next source to the Stop condition interrupt */
-            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_STOP_COND_INTERRUPT;
+            I2C_INTERRUPT_TYPE = _I2C_STOP_COND_INTERRUPT;
             break;
             
-        case _I2C_MASTER_STOP_COND_INTERRUPT:
+        case _I2C_STOP_COND_INTERRUPT:
             /* Change the next source to be the start condition to indicate a new comms */
-            i2c_current_mode = _I2C_MASTER_START_COND_INTERRUPT;
-            I2C_MASTER_INTERRUPT_TYPE = _I2C_MASTER_START_COND_INTERRUPT;
+            i2c_current_mode = _I2C_START_COND_INTERRUPT;
+            I2C_INTERRUPT_TYPE = _I2C_START_COND_INTERRUPT;
             break;
     }
 
@@ -679,12 +727,75 @@ void I2C_MASTER_ISR(const uint8 interrupt_type)
 }
 
 /**
- * @brief the interrupt service routine of I2C Module Slave Mode
+ * @brief The interrupt service routine for I2C Module in Slave Mode
+ * @param interrupt_type The interrupt type that has occurred
  */
-void I2C_SLAVE_ISR(void)
+void I2C_SLAVE_ISR(const uint8 interrupt_type)
 {
-    
+    /* Clear the I2C interrupt flag */
+    I2C_INTERRUPT_FLAG_BIT_CLEAR();
+
+    switch (interrupt_type)
+    {
+        /* The interrupt source is a start condition */
+        case _I2C_START_COND_INTERRUPT:
+            /* Reset mode and prepare for address reception */
+            i2c_current_mode = _I2C_ADDRESS_SENT_INTERRUPT;
+            I2C_INTERRUPT_TYPE = _I2C_ADDRESS_SENT_INTERRUPT;
+            break;
+            
+        /* The interrupt source is an address sent interrupt */    
+        case _I2C_ADDRESS_SENT_INTERRUPT:
+            /* Determine mode based on R/W bit */
+            if (_I2C_SLAVE_READ_MODE == SSPSTATbits.RW)  
+            {
+                /* Read the SSPBUF to clear BF flag and prevent overflow */
+                volatile uint8 dummy_data = SSPBUF;
+                /* Master requests data (Slave Transmit Mode) */
+                i2c_current_mode = _I2C_TRANSMIT_INTERRUPT;
+                i2c_send_data();  
+                /* Release the CLK */
+                I2C_SLAVE_RELEASE_CLK_CONFIG();
+            }
+            else
+            {
+                /* Master is sending data (Slave Receive Mode) */
+                i2c_current_mode = _I2C_RECEIVE_INTERRUPT;
+            }
+            /* Move to operation phase */
+            I2C_INTERRUPT_TYPE = _I2C_OPERATION_INTERRUPT;
+            break;
+
+        /* The interrupt source is the operation phase (data transmission/reception) */    
+        case _I2C_OPERATION_INTERRUPT:
+            if (i2c_current_mode == _I2C_RECEIVE_INTERRUPT)
+            {
+                /* Wait for data reception */
+                while (!_I2C_RECEIVE_BUFFER_FULL);  
+                /* Read received data */
+                i2c_read_SSPBUF();
+                /* Release the CLK */
+                I2C_SLAVE_RELEASE_CLK_CONFIG();
+            }
+            /* Move to Stop condition phase */
+            I2C_INTERRUPT_TYPE = _I2C_STOP_COND_INTERRUPT;
+            break;
+            
+        /* The interrupt source is a stop condition */
+        case _I2C_STOP_COND_INTERRUPT:
+            /* Reset communication mode for new transmissions */
+            i2c_current_mode = _I2C_START_COND_INTERRUPT;
+            I2C_INTERRUPT_TYPE = _I2C_START_COND_INTERRUPT;
+            break;
+    }
+
+    /* Call the registered interrupt handler (if available) */
+    if (i2c_interrupt_handler)
+    {
+        i2c_interrupt_handler();
+    }
 }
+
 #endif
 /**
  * @brief: Configure the SDA pin and SCL pin to be both inputs
@@ -849,7 +960,7 @@ static inline Std_ReturnType select_i2c_slave_mode(const i2c_t *const i2c_obj)
 
     }
     /* Load the address of the slave to the SSPADD */
-    SSPADD = slave_low_byte_addr;
+    SSPADD = (uint8)(slave_low_byte_addr << 1);
     return (return_status);
 }
 /*---------------MASTER Helper functions----------------------------------------*/
