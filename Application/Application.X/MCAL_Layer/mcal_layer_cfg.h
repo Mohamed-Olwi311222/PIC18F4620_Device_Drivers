@@ -21,5 +21,7 @@
 #define EEPROM_MODULE_ENABLE         MCAL_DISABLED                              /* Precompile Config for EEPROM Module to enable/disable it */
 #define EUSART_MODULE_ENABLE         MCAL_DISABLED                              /* Precompile Config for EUSART Module to enable/disable it */
 #define SPI_MODULE_ENABLE            MCAL_DISABLED                              /* Precompile Config for SPI Module to enable/disable it */
+#define I2C_MODULE_ENABLE            MCAL_DISABLED                              /* Precompile Config for I2C Module to enable/disable it */
+
 #endif	/* MCAL_LAYER_CFG_H */
 

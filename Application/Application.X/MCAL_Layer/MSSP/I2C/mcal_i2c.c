@@ -1,5 +1,6 @@
 #include "mcal_i2c.h"
 /*---------------Static Data types----------------------------------------------*/
+#if I2C_MODULE_ENABLE == MCAL_ENABLED
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER i2c_interrupt_handler = NULL;              /* A pointer to the callback function when an interrupt is raised */
 static uint8 data_to_transmit[_I2C_TRANSMIT_MAX_LEN] = {ZERO_INIT};
@@ -1160,5 +1161,5 @@ static inline void configure_i2c_interrupt_priority(interrupt_priority_cfg i2c_i
 }
 #endif
 #endif
-
+#endif
 /*---------------Static Helper functions definitions End------------------------*/
