@@ -102,6 +102,8 @@
 /*---Slave---*/
 #define _I2C_SLAVE_CLK_STRETCHING_ENABLE                     1 /* Clock stretching is enabled for both slave transmit and slave receive (stretch enabled) */
 #define _I2C_SLAVE_CLK_STRETCHING_DISABLE                    0 /* Clock stretching is disabled */
+
+#define _I2C_TRANSMIT_MAX_LEN                                 3
 /*----------------------------Macros Functions Declarations-------------------*/
 /*==================SSPSTAT REG================*/
 /*----------SMP Bit-----------*/
