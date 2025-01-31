@@ -20,6 +20,22 @@ static volatile uint8 RB7_Flag = RBx_FLAG_TRUE;          /*A flag to indicates t
  */
 void __interrupt() Interrupt_Manager_High(void)
 {
+#if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
+    if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF))
+    {
+        if (0x08 == SSPCON1bits.SSPM || 0x0B == SSPCON1bits.SSPM)
+        {
+            /* Call the ISR of the I2C Master Mode */
+            I2C_MASTER_ISR(I2C_INTERRUPT_TYPE);
+        }
+        else
+        {
+            /* Call the ISR of the I2C Slave Mode */
+            I2C_SLAVE_ISR(I2C_INTERRUPT_TYPE);
+        }
+    }
+    
+#endif
 #if SPI_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
     if ((INTERRUPT_ENABLE == PIE1bits.SSPIE) && (INTERRUPT_OCCUR == PIR1bits.SSPIF) &&
             (SPI_MASTER_MODE == SPI_MODE))

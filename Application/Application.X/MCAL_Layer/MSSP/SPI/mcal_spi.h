@@ -90,7 +90,7 @@
  */
 #define SPI_SERIAL_PORT_ENABLE_CONFIG()                      (SSPCON1bits.SSPEN = _SPI_ENABLE_SERIAL_PORT)
 /**
- * Enable the SPI serial port and configures SCK, SDO, SDI and SS as I/O port pins
+ * Disable the SPI serial port and configures SCK, SDO, SDI and SS as I/O port pins
  */
 #define SPI_SERIAL_PORT_DISABLE_CONFIG()                     (SSPCON1bits.SSPEN = _SPI_DISABLE_SERIAL_PORT)
 /*----------CKP Bit-----------*/

@@ -51,6 +51,8 @@
 
 /*--------SPI Module--------*/ 
 #define SPI_INTERRUPT_FEATURE                               INTERRUPT_FEATURE_DISABLE     /* SPI Interrupt on receive/transmit enable for preconfig */
+/*--------I2C Module--------*/ 
+#define I2C_INTERRUPT_FEATURE                               INTERRUPT_FEATURE_DISABLE     /* I2C Interrupt on receive/transmit enable for preconfig */
 /*----------------END Internal Interrupts------------*/
 
 /*----------------------------END Macros Declarations-------------------------*/

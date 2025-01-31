@@ -165,10 +165,12 @@
           <itemPath>MCAL_Layer/Interrupt/mcal_RBx_external_interrupt.c</itemPath>
         </logicalFolder>
         <logicalFolder name="MSSP" displayName="MSSP" projectFiles="true">
+          <logicalFolder name="I2C" displayName="I2C" projectFiles="true">
+            <itemPath>MCAL_Layer/MSSP/I2C/mcal_i2c.c</itemPath>
+          </logicalFolder>
           <logicalFolder name="SPI" displayName="SPI" projectFiles="true">
             <itemPath>MCAL_Layer/MSSP/SPI/mcal_spi.c</itemPath>
           </logicalFolder>
-          <itemPath>MCAL_Layer/MSSP/I2C/mcal_i2c.c</itemPath>
         </logicalFolder>
         <logicalFolder name="Timers" displayName="Timers" projectFiles="true">
           <logicalFolder name="Timer0" displayName="Timer0" projectFiles="true">
