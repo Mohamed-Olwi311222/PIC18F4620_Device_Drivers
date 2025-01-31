@@ -2,7 +2,9 @@
 /*---------------Static Data types----------------------------------------------*/
 #if I2C_INTERRUPT_FEATURE == INTERRUPT_FEATURE_ENABLE
 static INTERRUPT_HANDLER i2c_interrupt_handler = NULL;              /* A pointer to the callback function when an interrupt is raised */
-static uint8 data_to_transmit = ZERO_INIT;
+static uint8 data_to_transmit[_I2C_TRANSMIT_MAX_LEN] = {ZERO_INIT};
+static uint8 tx_idx = ZERO_INIT;
+static uint8 tx_queue_len = ZERO_INIT;
 static uint8 *slave_ack_nack = NULL;
 static uint8 *data_to_receive = NULL;
 static uint8 *expected_data_to_receive = NULL;
@@ -72,7 +74,7 @@ Std_ReturnType i2c_init(const i2c_t *const i2c_obj)
         return_status = E_NOT_OK;
     }
     else
-    {
+    {   
         /* Disable Serial Port */
         I2C_SERIAL_PORT_DISABLE_CONFIG();
         /* Configure the I2C Pins */
@@ -292,8 +294,16 @@ Std_ReturnType i2c_master_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
     }
     else
     {
-        /* Set the data to transmit */
-        data_to_transmit = data;
+        if (tx_queue_len < _I2C_TRANSMIT_MAX_LEN)
+        {
+            /* Set the data to transmit */
+            data_to_transmit[tx_queue_len] = data;
+            tx_queue_len++;
+        }
+        else if (tx_queue_len == _I2C_TRANSMIT_MAX_LEN)
+        {
+            tx_queue_len = 0;
+        }
         /* Set the address to send the data to */
         slave_low_byte_addr = (uint8)(slave_addr << 1);
         CLEAR_BIT(slave_low_byte_addr, 0);
@@ -362,7 +372,16 @@ Std_ReturnType i2c_slave_transmit_data_7_bit_addr(const i2c_t *const i2c_obj,
     else
     {
         /* Set the data to transmit */
-        data_to_transmit = data;
+        if (tx_queue_len < _I2C_TRANSMIT_MAX_LEN)
+        {
+            data_to_transmit[_I2C_TRANSMIT_MAX_LEN - tx_queue_len] = data;
+            tx_queue_len++;
+        }
+        else if (tx_queue_len == _I2C_TRANSMIT_MAX_LEN)
+        {
+            tx_queue_len = 0;
+        }
+        
         if (I2C_SLAVE_MODE_7_BIT_ADDR_START_STOP_INTERRUPTS_ON == i2c_obj->i2c_mode 
                 && _I2C_START_COND_INTERRUPT == i2c_current_mode)
         {
@@ -609,11 +628,17 @@ static inline void i2c_master_send_address(void)
     SSPBUF = slave_low_byte_addr;
 }
 /**
- * @brief: Send data when start condition happens in I2C Master Transmit mode
+ * @brief: Send data when start condition happens in I2C Transmit mode
  */
 static inline void i2c_send_data(void)
 {
-    SSPBUF = data_to_transmit;
+    SSPBUF = data_to_transmit[tx_idx];
+    tx_idx++;
+    tx_queue_len--;
+    if (tx_idx == _I2C_TRANSMIT_MAX_LEN)
+    {
+        tx_idx = 0;
+    }
 }
 /*
  * @brief: Read the SSPBUF in I2C Master Receive mode
@@ -706,8 +731,7 @@ void I2C_MASTER_ISR(const uint8 interrupt_type)
             }
             /* Send Stop Condition */
             I2C_MASTER_SEND_STOP_COND_CONFIG();
-            /* Wait for Stop condition to complete */
-            while (!(_I2C_MASTER_STOP_COND_IDLE == SSPCON2bits.PEN));
+
             /* Change the next source to the Stop condition interrupt */
             I2C_INTERRUPT_TYPE = _I2C_STOP_COND_INTERRUPT;
             break;
@@ -734,7 +758,7 @@ void I2C_SLAVE_ISR(const uint8 interrupt_type)
 {
     /* Clear the I2C interrupt flag */
     I2C_INTERRUPT_FLAG_BIT_CLEAR();
-
+    
     switch (interrupt_type)
     {
         /* The interrupt source is a start condition */
@@ -746,38 +770,35 @@ void I2C_SLAVE_ISR(const uint8 interrupt_type)
             
         /* The interrupt source is an address sent interrupt */    
         case _I2C_ADDRESS_SENT_INTERRUPT:
-            /* Determine mode based on R/W bit */
-            if (_I2C_SLAVE_READ_MODE == SSPSTATbits.RW)  
+            /* Read the SSPBUF to clear BF flag and prevent overflow */
+            if (_I2C_SLAVE_READ_MODE == SSPSTATbits.RW || 
+                _I2C_SLAVE_WRITE_MODE == SSPSTATbits.RW)
             {
-                /* Read the SSPBUF to clear BF flag and prevent overflow */
                 volatile uint8 dummy_data = SSPBUF;
-                /* Master requests data (Slave Transmit Mode) */
-                i2c_current_mode = _I2C_TRANSMIT_INTERRUPT;
-                i2c_send_data();  
                 /* Release the CLK */
                 I2C_SLAVE_RELEASE_CLK_CONFIG();
             }
-            else
+            
+            /* Determine mode based on R/W bit */
+            if (_I2C_SLAVE_READ_MODE == SSPSTATbits.RW)  
             {
-                /* Master is sending data (Slave Receive Mode) */
-                i2c_current_mode = _I2C_RECEIVE_INTERRUPT;
+                /* Master requests data (Slave Transmit Mode) */
+                i2c_current_mode = _I2C_TRANSMIT_INTERRUPT;
+                i2c_send_data();  
             }
             /* Move to operation phase */
             I2C_INTERRUPT_TYPE = _I2C_OPERATION_INTERRUPT;
             break;
-
-        /* The interrupt source is the operation phase (data transmission/reception) */    
+            
         case _I2C_OPERATION_INTERRUPT:
-            if (i2c_current_mode == _I2C_RECEIVE_INTERRUPT)
+            /* Master is sending data (Slave Receive Mode) */
+            /* Check for data reception */
+            if (_I2C_RECEIVE_BUFFER_FULL == SSPSTATbits.BF)
             {
-                /* Wait for data reception */
-                while (!_I2C_RECEIVE_BUFFER_FULL);  
                 /* Read received data */
                 i2c_read_SSPBUF();
-                /* Release the CLK */
-                I2C_SLAVE_RELEASE_CLK_CONFIG();
             }
-            /* Move to Stop condition phase */
+            /* Reset communication mode for new transmissions */
             I2C_INTERRUPT_TYPE = _I2C_STOP_COND_INTERRUPT;
             break;
             
@@ -794,6 +815,8 @@ void I2C_SLAVE_ISR(const uint8 interrupt_type)
     {
         i2c_interrupt_handler();
     }
+    /* Release the CLK */
+    I2C_SLAVE_RELEASE_CLK_CONFIG();
 }
 
 #endif
